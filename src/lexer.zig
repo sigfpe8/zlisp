@@ -19,6 +19,21 @@ pub const Token = enum { lparens,       // (
 
 //const extendedChars = "+-.*/<=>!?:$%_&~^";
 
+pub const ReadError = error {
+    StreamTooLong,
+    AccessDenied,
+    BrokenPipe,
+    ConnectionResetByPeer,
+    ConnectionTimedOut,
+    InputOutput,
+    IsDir,
+    NotOpenForReading,
+    OperationAborted,
+    SystemResources,
+    Unexpected,
+    WouldBlock,
+};
+
 fn isSymbolStart(ch: u8) bool {
     switch (ch) {
         '$'...'&' => return true,   // $ % &
@@ -51,16 +66,25 @@ fn isSymbolChar(ch: u8) bool {
 }
 
 pub const Lexer = struct {
-    line: []const u8, // Line of source code
-    cpos: usize = 0, // Current character index
-    cchar: u8 = 0, // Current character
-    schar: u8 = 0, // Single byte token
-    token: Token = undefined, // Current token type
-    ivalue: i64 = 0, // Value of integer token
-    fvalue: f64 = 0.0, // Value of float token
-    xvalue: u32 = 0, // Index if for a symbol token
+    eof: bool = false,      // At eof?
+    inexpr: bool = false,   // Inside an expression?
+    silent: bool = false,   // If true, don't print anything
+    lnum: usize = 0,        // Current line number
+    cpos: usize = 0,        // Current character index
+    cchar: u8 = 0,          // Current character
+    schar: u8 = 0,          // Single byte token
+    ivalue: i64 = 0,        // Value of integer token
+    fvalue: f64 = 0.0,      // Value of float token
+    xvalue: u32 = 0,        // Index if for a symbol token
+    token: Token = .end,    // Current token type
     svalue: []const u8 = undefined, // Value of string/symbol token
+    line: []const u8 = undefined,   // Current source line
+    buffer: []u8 = undefined,       // Line buffer
+    nextLine: *const fn(lexer: *Lexer) ReadError!?[]const u8,
 
+    const Self = @This();
+
+    /// Advances to next char; stops at eol.
     pub fn nextChar(self: *Lexer) void {
         if (self.cpos >= self.line.len) {
             self.cpos = self.line.len + 1; // So that the token slice works when at the end of the line
@@ -73,16 +97,44 @@ pub const Lexer = struct {
         self.cpos += 1;
     }
 
-    pub fn nextToken(self: *Lexer) void {
-        // Skip whitespace
-        while (ascii.isWhitespace(self.cchar))
-            self.nextChar();
+    /// Advances to next char; reads new line(s) if necessary.
+    pub fn nextTokenChar(self: *Lexer) !void {
+        while (self.cpos >= self.line.len) {
+            self.cpos = 0;
+            self.cchar = 0;
+            self.line = try self.nextLine(self)
+                        orelse {    // EOF
+                            self.eof = true;
+                            return;
+                        };
+        }
 
-        // If it's the real end of the line (0) or the beginning
-        // of a comment (';'), return end-of-line token.
-        if (self.cchar == 0 or self.cchar == ';') {
-            self.token = .end;
-            return;
+        // Assume ASCII
+        self.cchar = self.line[self.cpos];
+        self.cpos += 1;
+    }
+
+    pub fn nextToken(self: *Lexer) !void {
+        // Skip whitespace, empty lines and comments
+        while (true) {
+            // Skip whitespace (and 0 = eol)
+            while ((ascii.isWhitespace(self.cchar) or self.cchar == 0) and !self.eof)
+                try self.nextTokenChar();
+
+            // End of file?
+            if (self.eof) {
+                self.token = .end;
+                return;
+            }
+
+            // Skip comment (force nextTokenChar() to read next line)
+            if (self.cchar == ';') {
+                self.cpos = self.line.len;
+                self.cchar = 0;
+                continue;
+            }
+
+            break;  // Start of a new token
         }
 
         if (ascii.isDigit(self.cchar) or
@@ -158,7 +210,8 @@ pub const Lexer = struct {
             return self.parseFloat(begin);
         const end = self.cpos - 1;
         const value = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
-            print("Error {} parsing integer: {s}\n", .{ err, self.line[begin..end] });
+            if (!self.silent)
+                print("Error {} parsing integer: {s}\n", .{ err, self.line[begin..end] });
             self.token = .end;
             return;
         };
@@ -181,7 +234,8 @@ pub const Lexer = struct {
         }
         const end = self.cpos - 1;
         const value = std.fmt.parseFloat(f64, self.line[begin..end]) catch |err| {
-            print("Error {} parsing floating-point number: {s}\n", .{ err, self.line[begin..end] });
+            if (!self.silent)
+                print("Error {} parsing floating-point number: {s}\n", .{ err, self.line[begin..end] });
             self.token = .end;
             return;
         };
@@ -192,12 +246,12 @@ pub const Lexer = struct {
     fn parseSymbol(self: *Lexer) void {
         const begin = self.cpos - 1;
         self.nextChar();
-//        while (ascii.isAlphanumeric(self.cchar) or mem.containsAtLeast(u8, extendedChars, 1, self.cchar))
         while (isSymbolChar(self.cchar))
             self.nextChar();
         const end = self.cpos - 1;
         if (end - begin > 255) {
-            print("Symbol length is limited to 255 characters: {s}\n", .{self.line[begin..end]});
+            if (!self.silent)
+                print("Symbol length is limited to 255 characters: {s}\n", .{self.line[begin..end]});
             self.token = .end;
             return;
         }

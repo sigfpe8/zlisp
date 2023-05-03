@@ -1,5 +1,6 @@
 const std = @import("std");
-const Lexer = @import("lexer.zig").Lexer;
+const lex = @import("lexer.zig");
+const Lexer = lex.Lexer;
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
 const sexp = @import("sexpr.zig");
@@ -25,35 +26,16 @@ const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeInteger = sexp.makeInteger;
 const makeFloat = sexp.makeFloat;
 const makeVector = sexp.makeVector;
+const ReadError = lex.ReadError;
 
 const ParsingError = error{
     ExpectedRightParenthesis,
     VectorIsTooLong,
 };
 
-const SexprError = ParsingError || eval.EvalError;
+const SexprError = ParsingError || eval.EvalError || lex.ReadError;
 
 const MAXVECSIZE = vec.MAXVECSIZE;
-
-pub fn parseLine(line: []const u8) !void {
-    var lexer = Lexer{
-        .line = line,
-    };
-
-    // print("Parsing '{s}'\n", .{lexer.line});
-
-    lexer.nextChar();
-    while (true) {
-        lexer.nextToken();
-        var sexpr = try parseSexpr(&lexer);
-        if (@intToEnum(PtrTag, sexpr & TagMask) == .end)
-            break;
-        sexpr = try eval.globalEnv.eval(sexpr);
-        try printSexpr(sexpr, true);
-        print(" ", .{});
-    }
-    print("\n", .{});
-}
 
 /// Parse one S-expression
 /// Return tagged pointer to its internal form
@@ -72,14 +54,14 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             return makeTaggedPtr(lexer.xvalue, .symbol);
         },
         .lparens => {
-            lexer.nextToken(); // Skip (
+            try lexer.nextToken(); // Skip (
             const list = try parseList(lexer);
             if (lexer.token != .rparens)
                 return ParsingError.ExpectedRightParenthesis;
             return list;
         },
         .quote => {
-            lexer.nextToken(); // Skip '
+            try lexer.nextToken(); // Skip '
             var expr = try parseSexpr(lexer);
             var ptr1 = try Cell.alloc();
             cell.cellArray[ptr1].dot.car = expr;
@@ -96,7 +78,7 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             return sxTrue;
         },
         .hash_vec => {
-            lexer.nextToken(); // Skip #(
+            try lexer.nextToken(); // Skip #(
             const vexp = try parseVector(lexer);
             if (lexer.token != .rparens)
                 return ParsingError.ExpectedRightParenthesis;
@@ -114,11 +96,11 @@ fn parseList(lexer: *Lexer) SexprError!Sexpr {
         return 0; // nil
     const car = try parseSexpr(lexer);
     var cdr: Sexpr = undefined;
-    lexer.nextToken();
+    try lexer.nextToken();
     if (lexer.token == .dot) { // (A . B)
-        lexer.nextToken();
+        try lexer.nextToken();
         cdr = try parseSexpr(lexer);
-        lexer.nextToken();
+        try lexer.nextToken();
     } else { // (A B...)
         cdr = try parseList(lexer);
     }
@@ -142,7 +124,7 @@ fn parseVector(lexer: *Lexer) SexprError!Sexpr {
         const exp = try parseSexpr(lexer);
         tvec[siz] = exp;
         siz += 1;
-        lexer.nextToken();
+        try lexer.nextToken();
     }
 
     return makeVector(tvec[0..siz]);
