@@ -4,8 +4,8 @@ const print = std.debug.print;
 const sym = @import("symbol.zig");
 const mem = std.mem;
 
-pub const Token = enum { lparens,       // (
-                         rparens,       // )
+pub const Token = enum { lparens,       // ( [ {
+                         rparens,       // ) ] }
                          dot,           // .
                          quote,         // '
                          hash_f,        // #f
@@ -69,10 +69,11 @@ pub const Lexer = struct {
     eof: bool = false,      // At eof?
     inexpr: bool = false,   // Inside an expression?
     silent: bool = false,   // If true, don't print anything
-    lnum: usize = 0,        // Current line number
+    lnum: usize = 1,        // Current line number
     cpos: usize = 0,        // Current character index
     cchar: u8 = 0,          // Current character
     schar: u8 = 0,          // Single byte token
+    rparens: u8 = 0,        // Matching right parenthesis
     ivalue: i64 = 0,        // Value of integer token
     fvalue: f64 = 0.0,      // Value of float token
     xvalue: u32 = 0,        // Index if for a symbol token
@@ -148,8 +149,10 @@ pub const Lexer = struct {
             return self.parseHash();
 
         switch (self.cchar) {
-            '(' => self.token = .lparens,
-            ')' => self.token = .rparens,
+            '(' => { self.token = .lparens; self.rparens = ')'; },
+            '[' => { self.token = .lparens; self.rparens = ']'; },
+            '{' => { self.token = .lparens; self.rparens = '}'; },
+            ')', ']', '}' => self.token = .rparens,
             '.' => self.token = .dot,
             '\'' => self.token = .quote,
             else => self.token = .unknown,
@@ -191,7 +194,9 @@ pub const Lexer = struct {
         switch (self.cchar) {
             'f' => self.token = .hash_f,
             't' => self.token = .hash_t,
-            '(' => self.token = .hash_vec,
+            '(' => { self.token = .hash_vec; self.rparens = ')'; },
+            '[' => { self.token = .hash_vec; self.rparens = ']'; },
+            '{' => { self.token = .hash_vec; self.rparens = '}'; },
             '\\' => {
                 self.token = .hash_char;
             },

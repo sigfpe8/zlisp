@@ -30,6 +30,8 @@ const ReadError = lex.ReadError;
 
 const ParsingError = error{
     ExpectedRightParenthesis,
+    ExpectedRightBracket,
+    ExpectedRightBrace,
     VectorIsTooLong,
 };
 
@@ -54,10 +56,18 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             return makeTaggedPtr(lexer.xvalue, .symbol);
         },
         .lparens => {
+            const rparens = lexer.rparens;  // Matching right parenthesis
             try lexer.nextToken(); // Skip (
             const list = try parseList(lexer);
             if (lexer.token != .rparens)
                 return ParsingError.ExpectedRightParenthesis;
+            if (lexer.schar != rparens) {
+                return switch (rparens) {
+                    ']' => ParsingError.ExpectedRightBracket,
+                    '}' => ParsingError.ExpectedRightBrace,
+                    else => ParsingError.ExpectedRightParenthesis,
+                };
+            }
             return list;
         },
         .quote => {
@@ -78,10 +88,18 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             return sxTrue;
         },
         .hash_vec => {
+            const rparens = lexer.rparens;  // Matching right parenthesis
             try lexer.nextToken(); // Skip #(
             const vexp = try parseVector(lexer);
             if (lexer.token != .rparens)
                 return ParsingError.ExpectedRightParenthesis;
+            if (lexer.schar != rparens) {
+                return switch (rparens) {
+                    ']' => ParsingError.ExpectedRightBracket,
+                    '}' => ParsingError.ExpectedRightBrace,
+                    else => ParsingError.ExpectedRightParenthesis,
+                };
+            }
             return vexp;
         },
         else => return 0,
