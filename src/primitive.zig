@@ -39,19 +39,25 @@ pub const Primit = struct {
 };
 
 const PrimitTable = [_]Primit{
-    .{ .name = "car",    .func = pCar,    .minargs = 1, .maxargs = 1, },
-    .{ .name = "cdr",    .func = pCdr,    .minargs = 1, .maxargs = 1, },
-    .{ .name = "cons",   .func = pCons,   .minargs = 2, .maxargs = 2, },
-    .{ .name = "length", .func = pLength, .minargs = 1, .maxargs = 1, },
-    .{ .name = "+",      .func = pPlus,   .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "-",      .func = pMinus,  .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "*",      .func = pTimes,  .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "/",      .func = pDiv,    .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "<",      .func = pLess,   .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "<=",     .func = pLessEq, .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "=",      .func = pEqual,  .minargs = 1, .maxargs = unlimited, },
-    .{ .name = ">",      .func = pGrt,    .minargs = 1, .maxargs = unlimited, },
-    .{ .name = ">=",     .func = pGrtEq,  .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "boolean?",    .func = pBoolPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "car",         .func = pCar,      .minargs = 1, .maxargs = 1, },
+    .{ .name = "cdr",         .func = pCdr,      .minargs = 1, .maxargs = 1, },
+    .{ .name = "cons",        .func = pCons,     .minargs = 2, .maxargs = 2, },
+    .{ .name = "length",      .func = pLength,   .minargs = 1, .maxargs = 1, },
+    .{ .name = "number?",     .func = pNumPred,  .minargs = 1, .maxargs = 1, },
+    .{ .name = "pair?",       .func = pPairPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "procedure?",  .func = pProcPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "symbol?",     .func = pSymbPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "vector?",     .func = pVecPred,  .minargs = 1, .maxargs = 1, },
+    .{ .name = "+",           .func = pPlus,     .minargs = 0, .maxargs = unlimited, },
+    .{ .name = "-",           .func = pMinus,    .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "*",           .func = pTimes,    .minargs = 0, .maxargs = unlimited, },
+    .{ .name = "/",           .func = pDiv,      .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "<",           .func = pLess,     .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "<=",          .func = pLessEq,   .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "=",           .func = pEqual,    .minargs = 1, .maxargs = unlimited, },
+    .{ .name = ">",           .func = pGrt,      .minargs = 1, .maxargs = unlimited, },
+    .{ .name = ">=",          .func = pGrtEq,    .minargs = 1, .maxargs = unlimited, },
 };
 
 pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
@@ -90,6 +96,36 @@ pub fn init() !void {
 
 pub fn prim_getName(id: PrimitId) []const u8 {
     return PrimitTable[id].name;
+}
+
+fn pBoolPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .boolean) sxTrue else sxFalse;
+}
+
+fn pNumPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .small_int or tag == .integer or tag == .float) sxTrue else sxFalse;
+}
+
+fn pPairPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .pair) sxTrue else sxFalse;
+}
+
+fn pProcPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .procedure or tag == .primitive) sxTrue else sxFalse;
+}
+
+fn pSymbPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .symbol) sxTrue else sxFalse;
+}
+
+fn pVecPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .vector) sxTrue else sxFalse;
 }
 
 fn pCar(args: []Sexpr) EvalError!Sexpr {
