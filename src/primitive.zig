@@ -2,6 +2,7 @@ const std = @import("std");
 const sexp = @import("sexpr.zig");
 const eval = @import("eval.zig");
 const cell = @import("cell.zig");
+const str = @import("string.zig");
 const sym = @import("symbol.zig");
 
 const Sexpr = sexp.Sexpr;
@@ -39,25 +40,27 @@ pub const Primit = struct {
 };
 
 const PrimitTable = [_]Primit{
-    .{ .name = "boolean?",    .func = pBoolPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "car",         .func = pCar,      .minargs = 1, .maxargs = 1, },
-    .{ .name = "cdr",         .func = pCdr,      .minargs = 1, .maxargs = 1, },
-    .{ .name = "cons",        .func = pCons,     .minargs = 2, .maxargs = 2, },
-    .{ .name = "length",      .func = pLength,   .minargs = 1, .maxargs = 1, },
-    .{ .name = "number?",     .func = pNumPred,  .minargs = 1, .maxargs = 1, },
-    .{ .name = "pair?",       .func = pPairPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "procedure?",  .func = pProcPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "symbol?",     .func = pSymbPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "vector?",     .func = pVecPred,  .minargs = 1, .maxargs = 1, },
-    .{ .name = "+",           .func = pPlus,     .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "-",           .func = pMinus,    .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "*",           .func = pTimes,    .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "/",           .func = pDiv,      .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "<",           .func = pLess,     .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "<=",          .func = pLessEq,   .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "=",           .func = pEqual,    .minargs = 1, .maxargs = unlimited, },
-    .{ .name = ">",           .func = pGrt,      .minargs = 1, .maxargs = unlimited, },
-    .{ .name = ">=",          .func = pGrtEq,    .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "boolean?",      .func = pBoolPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "car",           .func = pCar,      .minargs = 1, .maxargs = 1, },
+    .{ .name = "cdr",           .func = pCdr,      .minargs = 1, .maxargs = 1, },
+    .{ .name = "cons",          .func = pCons,     .minargs = 2, .maxargs = 2, },
+    .{ .name = "length",        .func = pLength,   .minargs = 1, .maxargs = 1, },
+    .{ .name = "number?",       .func = pNumPred,  .minargs = 1, .maxargs = 1, },
+    .{ .name = "pair?",         .func = pPairPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "procedure?",    .func = pProcPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "string?",       .func = pStrPred,  .minargs = 1, .maxargs = 1, },
+    .{ .name = "string-length", .func = pStrLen,   .minargs = 1, .maxargs = 1, },
+    .{ .name = "symbol?",       .func = pSymbPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "vector?",       .func = pVecPred,  .minargs = 1, .maxargs = 1, },
+    .{ .name = "+",             .func = pPlus,     .minargs = 0, .maxargs = unlimited, },
+    .{ .name = "-",             .func = pMinus,    .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "*",             .func = pTimes,    .minargs = 0, .maxargs = unlimited, },
+    .{ .name = "/",             .func = pDiv,      .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "<",             .func = pLess,     .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "<=",            .func = pLessEq,   .minargs = 1, .maxargs = unlimited, },
+    .{ .name = "=",             .func = pEqual,    .minargs = 1, .maxargs = unlimited, },
+    .{ .name = ">",             .func = pGrt,      .minargs = 1, .maxargs = unlimited, },
+    .{ .name = ">=",            .func = pGrtEq,    .minargs = 1, .maxargs = unlimited, },
 };
 
 pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
@@ -116,6 +119,20 @@ fn pPairPred(args: []Sexpr) EvalError!Sexpr {
 fn pProcPred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .procedure or tag == .primitive) sxTrue else sxFalse;
+}
+
+fn pStrLen(args: []Sexpr) EvalError!Sexpr {
+    const exp = args[0];
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+    const len = str.stringsTable.items[exp >> TagShift].len;
+    return makeInteger(len);
+}
+
+fn pStrPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .string) sxTrue else sxFalse;
 }
 
 fn pSymbPred(args: []Sexpr) EvalError!Sexpr {

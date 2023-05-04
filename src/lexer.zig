@@ -2,7 +2,11 @@ const std = @import("std");
 const ascii = std.ascii;
 const print = std.debug.print;
 const sym = @import("symbol.zig");
+const str = @import("string.zig");
 const mem = std.mem;
+
+var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = ggpa.allocator();
 
 pub const Token = enum { lparens,       // ( [ {
                          rparens,       // ) ] }
@@ -15,6 +19,7 @@ pub const Token = enum { lparens,       // ( [ {
                          symbol,        // name
                          integer,       // 1234567890
                          float,         // 1.23456789
+                         string,        // "string"
                          end, unknown };
 
 //const extendedChars = "+-.*/<=>!?:$%_&~^";
@@ -148,6 +153,9 @@ pub const Lexer = struct {
         if (self.cchar == '#')
             return self.parseHash();
 
+        if (self.cchar == '"')
+            return self.parseString();
+
         switch (self.cchar) {
             '(' => { self.token = .lparens; self.rparens = ')'; },
             '[' => { self.token = .lparens; self.rparens = ']'; },
@@ -267,5 +275,41 @@ pub const Lexer = struct {
             return;
         };
         self.token = .symbol;
+    }
+
+    fn parseString(self: *Lexer) !void {
+        var lit = std.ArrayList(u8).init(allocator);
+        defer lit.deinit();
+        self.nextChar();    // Skip starting "
+        while (self.cchar != '"') {
+            var cchar = self.cchar;
+            if (cchar == '\\') {
+                self.nextChar();
+                cchar = self.cchar;
+                cchar = switch(cchar) {
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    else => cchar,
+                };
+            }
+            if (cchar == 0) {   // End of line
+                const save_inexpr = self.inexpr;
+                self.inexpr = true;
+                try lit.append('\n');
+                try self.nextTokenChar();
+                self.inexpr = save_inexpr;
+                continue;
+            }
+            try lit.append(cchar);
+            self.nextChar();
+        }
+        self.nextChar();    // Skip ending "
+        self.xvalue = str.add(lit.items) catch |err| {
+            print("Error {} parsing string: \"{s}\"\n", .{ err, lit.items });
+            self.token = .end;
+            return;
+        };
+        self.token = .string;
     }
 };

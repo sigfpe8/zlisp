@@ -11,6 +11,7 @@ const vec = @import("vector.zig");
 const proc = @import("procedure.zig");
 const eval = @import("eval.zig");
 const sexp = @import("sexpr.zig");
+const str = @import("string.zig");
 const Proc = proc.Proc;
 const PtrTag = sexp.PtrTag;
 const TagMask = sexp.TagMask;
@@ -43,6 +44,8 @@ pub fn main() !void {
     defer vec.deinit();
     try Proc.init(1024);
     defer Proc.deinit();
+    try str.init();
+    defer str.deinit();
 
     try env.internKeywords();
     try prim.init();

@@ -35,6 +35,7 @@ pub const EvalError = error{
     ExpectedVariable,
     ExpectedList,
     ExpectedNumber,
+    ExpectedString,
     ExpectedProcedure,
     DefineFailed,
     PrintError,

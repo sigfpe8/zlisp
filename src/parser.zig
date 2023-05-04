@@ -4,6 +4,7 @@ const Lexer = lex.Lexer;
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
 const sexp = @import("sexpr.zig");
+const str = @import("string.zig");
 const sym = @import("symbol.zig");
 const eval = @import("eval.zig");
 const prim = @import("primitive.zig");
@@ -54,6 +55,9 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
         },
         .symbol => {
             return makeTaggedPtr(lexer.xvalue, .symbol);
+        },
+        .string => {
+            return makeTaggedPtr(lexer.xvalue, .string);
         },
         .lparens => {
             const rparens = lexer.rparens;  // Matching right parenthesis
@@ -172,11 +176,6 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
         .boolean => {
             print("#{s}", .{ if (exp == 0) "f" else "t" });
         },
-        .symbol => {
-            if (quoted)
-                print("'", .{});
-            print("{s}", .{sym.getName(exp)});
-        },
         .pair => {
             const ptr = cell.cellArray[exp].dot;
             if (quoted)
@@ -185,6 +184,20 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             try printSexpr(ptr.car, false);
             try printList(ptr.cdr);
             print(")", .{});
+        },
+        .primitive => {
+            print("#<primitive:{s}>", .{ prim.prim_getName(exp)});
+        },
+        .procedure => {
+            print("#<procedure>", .{});
+        },
+        .string => {
+            print("\"{s}\"", .{str.get(exp)});
+        },
+        .symbol => {
+            if (quoted)
+                print("'", .{});
+            print("{s}", .{sym.getName(exp)});
         },
         .vector => {
             const siz = vec.vecArray[exp];
@@ -201,12 +214,6 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
                     print(" ", .{});
             }
             print(")", .{});
-        },
-        .primitive => {
-            print("#<primitive:{s}>", .{ prim.prim_getName(exp)});
-        },
-        .procedure => {
-            print("#<procedure>", .{});
         },
         else => {
             print("?", .{});
