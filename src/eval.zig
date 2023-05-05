@@ -48,11 +48,12 @@ pub const EvalError = error{
 };
 
 // Scheme keywords (special forms)
-pub var kwDefine: SymbolId = undefined;
-pub var kwIf:     SymbolId = undefined;
-pub var kwLambda: SymbolId = undefined;
-pub var kwLet:    SymbolId = undefined;
-pub var kwQuote:  SymbolId = undefined;
+pub var kwDefine:  SymbolId = undefined;
+pub var kwIf:      SymbolId = undefined;
+pub var kwLambda:  SymbolId = undefined;
+pub var kwLet:     SymbolId = undefined;
+pub var kwLetStar: SymbolId = undefined;
+pub var kwQuote:   SymbolId = undefined;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
@@ -63,11 +64,12 @@ pub var globalEnv = Environ{
 };
 
 pub fn internKeywords() !void {
-    kwDefine = try sym.intern("define");
-    kwIf     = try sym.intern("if");
-    kwLambda = try sym.intern("lambda");
-    kwLet    = try sym.intern("let");
-    kwQuote  = try sym.intern("quote");
+    kwDefine  = try sym.intern("define");
+    kwIf      = try sym.intern("if");
+    kwLambda  = try sym.intern("lambda");
+    kwLet     = try sym.intern("let");
+    kwLetStar = try sym.intern("let*");
+    kwQuote   = try sym.intern("quote");
 }
 
 fn cons(pcar: Sexpr, pcdr: Sexpr) !Sexpr {
@@ -198,19 +200,15 @@ pub const Environ = struct {
                         return try env.evalBody(body);
                     }
 
-                    if (carptr == kwDefine) { // (define <var> <exp>)
-                        // const vname = try car(dot.cdr);
-                        // tag = @intToEnum(PtrTag, vname & TagMask);
-                        // if (tag != .symbol)
-                        //     return EvalError.ExpectedSymbol;
-                        // exp = try cdr(dot.cdr);
-                        // const pcdr = try cdr(exp);
-                        // if (pcdr != nil)
-                        //     return EvalError.ExpectedTwoArguments;
-                        // exp = try car(exp);
-                        // exp = try self.eval(exp);
-                        // try self.setVar(vname >> TagShift, exp);
+                    if (carptr == kwLetStar) {  // (let* ((<var> <exp>)*) <body>)
+                        const env  = try self.newBindingsStar(dot.cdr);
+                        const bid  = try getBody(dot.cdr) >> TagShift;
+                        const blen = vec.vecArray[bid];
+                        const body = vec.vecArray[bid+1..bid+1+blen];
+                        return try env.evalBody(body);
+                    }
 
+                    if (carptr == kwDefine) { // (define <var> <exp>)
                         // Use the same (current) environment to evaluate the
                         // expressions and bind the variables.
                         try self.evalDefine(self, dot.cdr);
@@ -384,7 +382,7 @@ pub const Environ = struct {
         var lst = try car(list);
         const newenv: *Environ = try allocator.create(Environ);
         newenv.* = .{
-            .outer = null,
+            .outer = self,
             .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
         };
 
@@ -395,14 +393,27 @@ pub const Environ = struct {
             lst = try cdr(lst);
         }
 
-        newenv.outer = self;
         return newenv;
     }
 
-    fn applyLet(self: *Self, bindings: Sexpr, body: Sexpr) !Sexpr {
-        _ = self;
-        _ = bindings;
-        _ = body;
-        return 0;
+    // Expects a list of bindings as ((<var> <exp>)*)
+    // Similar to newBindings() but uses the new environment
+    // to evaluate and bind the variables.
+    fn newBindingsStar(self: *Self, list: Sexpr) !*Environ {
+        var lst = try car(list);
+        const newenv: *Environ = try allocator.create(Environ);
+        newenv.* = .{
+            .outer = self,
+            .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
+        };
+
+        while (lst != nil) {
+            // Evaluate expressions in the current environment but
+            // bind them to variables in the new environment
+            try newenv.evalDefine(newenv, try car(lst));
+            lst = try cdr(lst);
+        }
+
+        return newenv;
     }
 };
