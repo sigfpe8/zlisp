@@ -48,6 +48,7 @@ pub const EvalError = error{
 };
 
 // Scheme keywords (special forms)
+pub var kwBegin:   SymbolId = undefined;
 pub var kwDefine:  SymbolId = undefined;
 pub var kwIf:      SymbolId = undefined;
 pub var kwLambda:  SymbolId = undefined;
@@ -64,6 +65,7 @@ pub var globalEnv = Environ{
 };
 
 pub fn internKeywords() !void {
+    kwBegin   = try sym.intern("begin");
     kwDefine  = try sym.intern("define");
     kwIf      = try sym.intern("if");
     kwLambda  = try sym.intern("lambda");
@@ -231,6 +233,13 @@ pub const Environ = struct {
                             exp = try car(elsexp);
                         }
                         return try self.eval(exp);
+                    }
+
+                    if (carptr == kwBegin) {    // (begin <sequence>)
+                        const bid  = try getBody(sexpr) >> TagShift;
+                        const blen = vec.vecArray[bid];
+                        const body = vec.vecArray[bid+1..bid+1+blen];
+                        return try self.evalBody(body);
                     }
                 }
                 // Must be function application
