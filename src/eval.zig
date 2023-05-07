@@ -177,7 +177,7 @@ pub const Environ = struct {
                 var cdrptr = dot.cdr >> TagShift;
 
                 // Must be a proper list
-                if (cdrtag != .nil and cdrtag != .pair)
+                if (cdrtag != .pair)
                     return EvalError.InvalidSyntax;
 
                 if (cartag == .symbol) { // Check for special forms
@@ -348,7 +348,7 @@ pub const Environ = struct {
         var len: u32 = 0;
         var tag: PtrTag = @intToEnum(PtrTag, ptr & TagMask);
         
-        if (tag != .pair and tag != .nil)
+        if (tag != .pair)
             return EvalError.ExpectedList;
 
         while (ptr != nil) {

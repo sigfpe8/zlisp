@@ -30,6 +30,7 @@
 * Math procedures (zero?, positive?, modulo, sin, cos, etc.)
 * String/char procedures (string-ref, char->integer, etc.)
 * Vector procedures (vector, vector-ref, etc.)
+* Add Scheme unit tests
 
 ## Amenities
 

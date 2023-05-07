@@ -36,13 +36,15 @@ pub const maxSmallInt = std.math.maxInt(i28);
 
 pub const TagMask = 0xF;
 pub const TagShift = 4;
-pub const nil = 0;
 
 pub const sxFalse = makeTaggedPtr(0, .boolean);
 pub const sxTrue  = makeTaggedPtr(1, .boolean);
 pub const sxNullVec = makeTaggedPtr(0, .vector);
+pub const sxEnd = makeTaggedPtr(0, .special);
+pub const nil = makeTaggedPtr(0, .pair);            // == 0 a.k.a. '()
 
-pub const PtrTag = enum { nil, small_int, integer, char, boolean, float, symbol, string, pair, vector, primitive, procedure, end };
+
+pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, special };
 
 pub const Sexpr = TaggedPtr;
 

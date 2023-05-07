@@ -21,6 +21,7 @@ const SymbolId = sym.SymbolId;
 const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
 const sxTrue  = sexp.sxTrue;
+const sxEnd = sexp.sxEnd;
 const TagShift = sexp.TagShift;
 const TagMask = sexp.TagMask;
 const makeTaggedPtr = sexp.makeTaggedPtr;
@@ -46,7 +47,7 @@ const MAXVECSIZE = vec.MAXVECSIZE;
 /// Exit:  token -> last token in Sexpr
 pub fn parseSexpr(lexer: *Lexer) !Sexpr {
     switch (lexer.token) {
-        .end => return makeTaggedPtr(0, .end),
+        .end => return sxEnd,
         .integer => {
             return try makeInteger(lexer.ivalue);
         },
@@ -106,16 +107,16 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             }
             return vexp;
         },
-        else => return 0,
+        else => return nil,
     }
-    return 0;
+    unreachable;
 }
 
 // Entry: token -> 1st token after (
 // Exit:  token -> )
 fn parseList(lexer: *Lexer) SexprError!Sexpr {
     if (lexer.token == .rparens or lexer.token == .end)
-        return 0; // nil
+        return nil;
     const car = try parseSexpr(lexer);
     var cdr: Sexpr = undefined;
     try lexer.nextToken();
@@ -153,14 +154,15 @@ fn parseVector(lexer: *Lexer) SexprError!Sexpr {
 }
 
 pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
+    if (sexpr == nil) {
+        if (quoted)
+            print("'", .{});
+        print("()", .{});
+        return;
+    }
     const tag = @intToEnum(PtrTag, sexpr & TagMask);
     const exp = sexpr >> TagShift;
     switch (tag) {
-        .nil => {
-            if (quoted)
-                print("'", .{});
-            print("()", .{});
-        },
         .small_int => {
             const val: i64 = @as(i64, @bitCast(TaggedInt, sexpr)) >> TagShift;
             print("{d}", .{val});

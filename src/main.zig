@@ -16,6 +16,7 @@ const Proc = proc.Proc;
 const PtrTag = sexp.PtrTag;
 const TagMask = sexp.TagMask;
 const ReadError = lex.ReadError;
+const sxEnd = sexp.sxEnd;
 
 const ver_major = 0;
 const ver_minor = 1;
@@ -91,9 +92,7 @@ fn repl(lexer: *Lexer) !void {
         lexer.inexpr = true;
         var sexpr = try parser.parseSexpr(lexer);
         lexer.inexpr = false;
-        if (lexer.eof)
-            break;
-        if (@intToEnum(PtrTag, sexpr & TagMask) == .end)
+        if (lexer.eof or sexpr == sxEnd)
             break;
         sexpr = try eval.globalEnv.eval(sexpr);
         if (!lexer.silent) {
