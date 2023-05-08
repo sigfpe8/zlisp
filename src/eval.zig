@@ -113,22 +113,6 @@ fn cadr(sexpr: Sexpr) !Sexpr {
     return cell.cellArray[exp].dot.car;
 }
 
-fn length(arg: Sexpr) !i64 {
-    var list = arg;
-    var len: i64 = 0;
-
-    while (list != nil) {
-        const tag = @intToEnum(PtrTag, list & TagMask);
-        if (tag != .pair)
-            return EvalError.ExpectedList;
-        len += 1;
-        list = cell.cellArray[list >> TagShift].dot.cdr;
-    }
-
-    return 
-    len;
-}
-
 fn apply(newenv: *Environ, pid: ProcId, args: []Sexpr) !Sexpr {
     const pt: *Proc = &proc.procArray[pid];
     var env: *Environ = newenv; // New environment for the execution

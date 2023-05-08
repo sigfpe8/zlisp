@@ -45,9 +45,13 @@ const PrimitTable = [_]Primit{
     .{ .name = "cdr",           .func = pCdr,      .minargs = 1, .maxargs = 1, },
     .{ .name = "cons",          .func = pCons,     .minargs = 2, .maxargs = 2, },
     .{ .name = "length",        .func = pLength,   .minargs = 1, .maxargs = 1, },
+    .{ .name = "list",          .func = pList,     .minargs = 0, .maxargs = unlimited, },
+    .{ .name = "list?",         .func = pListPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "null?",         .func = pNullPred, .minargs = 1, .maxargs = 1, },
     .{ .name = "number?",       .func = pNumPred,  .minargs = 1, .maxargs = 1, },
     .{ .name = "pair?",         .func = pPairPred, .minargs = 1, .maxargs = 1, },
     .{ .name = "procedure?",    .func = pProcPred, .minargs = 1, .maxargs = 1, },
+    .{ .name = "reverse",       .func = pReverse,  .minargs = 1, .maxargs = 1, },
     .{ .name = "string?",       .func = pStrPred,  .minargs = 1, .maxargs = 1, },
     .{ .name = "string-length", .func = pStrLen,   .minargs = 1, .maxargs = 1, },
     .{ .name = "symbol?",       .func = pSymbPred, .minargs = 1, .maxargs = 1, },
@@ -179,6 +183,50 @@ fn pLength(args: []Sexpr) EvalError!Sexpr {
 
     return makeInteger(len);
 }
+
+fn pList(args: []Sexpr) EvalError!Sexpr {
+    var list = nil;
+    var i = args.len;
+
+    while (i > 0) : (i -= 1) {
+        list = try makePair(args[i-1], list);
+    }
+
+    return list;
+}
+
+fn pListPred(args: []Sexpr) EvalError!Sexpr {
+    var arg = args[0];
+
+    while (arg != nil) {
+        const tag = @intToEnum(PtrTag, arg & TagMask);
+        if (tag != .pair)
+            return sxFalse;
+        arg = cell.cellArray[arg >> TagShift].dot.cdr;
+    }
+
+    return sxTrue;
+}
+
+fn pReverse(args: []Sexpr) EvalError!Sexpr {
+    var list = nil;
+    var arg = args[0];
+
+    while (arg != nil) {
+        const tag = @intToEnum(PtrTag, arg & TagMask);
+        if (tag != .pair)
+            return EvalError.ExpectedList;
+        list = try makePair(cell.cellArray[arg >> TagShift].dot.car, list);
+        arg = cell.cellArray[arg >> TagShift].dot.cdr;
+    }
+
+    return list;
+}
+
+fn pNullPred(args: []Sexpr) EvalError!Sexpr {
+    return if (args[0] == nil) sxTrue else sxFalse;
+}
+
 
 // Determine the highest number type in a list of arguments
 // float > integer

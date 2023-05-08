@@ -1,4 +1,5 @@
 .vscode/
 old/
+xfiles/
 zig-cache/
 zig-out/
