@@ -56,6 +56,7 @@ const PrimitTable = [_]Primit{
     .{ .name = "string-length", .func = pStrLen,   .minargs = 1, .maxargs = 1, },
     .{ .name = "symbol?",       .func = pSymbPred, .minargs = 1, .maxargs = 1, },
     .{ .name = "vector?",       .func = pVecPred,  .minargs = 1, .maxargs = 1, },
+    .{ .name = "zero?",         .func = pZeroPred, .minargs = 1, .maxargs = 1, },
     .{ .name = "+",             .func = pPlus,     .minargs = 0, .maxargs = unlimited, },
     .{ .name = "-",             .func = pMinus,    .minargs = 1, .maxargs = unlimited, },
     .{ .name = "*",             .func = pTimes,    .minargs = 0, .maxargs = unlimited, },
@@ -147,6 +148,19 @@ fn pSymbPred(args: []Sexpr) EvalError!Sexpr {
 fn pVecPred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .vector) sxTrue else sxFalse;
+}
+
+fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const isZero: bool = switch (tag) {
+        .small_int => ind == 0,
+        .integer => cell.cellArray[ind].int == 0,
+        .float => cell.cellArray[ind].flt == 0.0,
+        else => return EvalError.ExpectedNumber,
+    };
+    return  if (isZero) sxTrue else sxFalse;
 }
 
 fn pCar(args: []Sexpr) EvalError!Sexpr {

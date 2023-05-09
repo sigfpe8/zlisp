@@ -40,11 +40,12 @@ pub const TagShift = 4;
 pub const sxFalse = makeTaggedPtr(0, .boolean);
 pub const sxTrue  = makeTaggedPtr(1, .boolean);
 pub const sxNullVec = makeTaggedPtr(0, .vector);
-pub const sxEnd = makeTaggedPtr(0, .special);
+pub const sxEnd = makeTaggedPtr(0, .extra);
+pub const sxUndef = makeTaggedPtr(1, .extra);
 pub const nil = makeTaggedPtr(0, .pair);            // == 0 a.k.a. '()
 
 
-pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, special };
+pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, extra };
 
 pub const Sexpr = TaggedPtr;
 

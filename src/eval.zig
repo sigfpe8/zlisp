@@ -17,6 +17,7 @@ const Cell = cell.Cell;
 const Proc = proc.Proc;
 const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
+const sxUndef = sexp.sxUndef;
 const print = std.debug.print;
 const printSexpr = @import("parser.zig").printSexpr;
 const makeTaggedPtr = sexp.makeTaggedPtr;
@@ -27,6 +28,7 @@ const MAXVECSIZE = vec.MAXVECSIZE;
 pub const EvalError = error{
     InvalidSyntax,
     UndefinedVariable,
+    LetrecUndefVariable,
     ExpectedOneArgument,
     ExpectedTwoArguments,
     ExpectedThreeArguments,
@@ -53,6 +55,7 @@ pub var kwDefine:  SymbolId = undefined;
 pub var kwIf:      SymbolId = undefined;
 pub var kwLambda:  SymbolId = undefined;
 pub var kwLet:     SymbolId = undefined;
+pub var kwLetRec:  SymbolId = undefined;
 pub var kwLetStar: SymbolId = undefined;
 pub var kwQuote:   SymbolId = undefined;
 
@@ -70,6 +73,7 @@ pub fn internKeywords() !void {
     kwIf      = try sym.intern("if");
     kwLambda  = try sym.intern("lambda");
     kwLet     = try sym.intern("let");
+    kwLetRec  = try sym.intern("letrec");
     kwLetStar = try sym.intern("let*");
     kwQuote   = try sym.intern("quote");
 }
@@ -180,6 +184,14 @@ pub const Environ = struct {
 
                     if (carptr == kwLet) {  // (let ((<var> <exp>)*) <body>)
                         const env  = try self.newBindings(dot.cdr);
+                        const bid  = try getBody(dot.cdr) >> TagShift;
+                        const blen = vec.vecArray[bid];
+                        const body = vec.vecArray[bid+1..bid+1+blen];
+                        return try env.evalBody(body);
+                    }
+
+                    if (carptr == kwLetRec) {  // (letrec ((<var> <exp>)*) <body>)
+                        const env  = try self.newBindingsRec(dot.cdr);
                         const bid  = try getBody(dot.cdr) >> TagShift;
                         const blen = vec.vecArray[bid];
                         const body = vec.vecArray[bid+1..bid+1+blen];
@@ -315,7 +327,13 @@ pub const Environ = struct {
 
         while (oenv) |env| {
             // If variable is defined, return its value
-            if (env.assoc.get(symbol)) |value| return value;
+            if (env.assoc.get(symbol)) |value| {
+                if (value != sxUndef)
+                    return value;
+                // sxUndef can only occur in the pre-binding step of letrec
+                // and any reference to his special value is an error.
+                return EvalError.LetrecUndefVariable;
+            }
             // Otherwise try outer frame
             oenv = env.outer;
         }
@@ -391,6 +409,53 @@ pub const Environ = struct {
 
     // Expects a list of bindings as ((<var> <exp>)*)
     // Similar to newBindings() but uses the new environment
+    // to evaluate and bind the variables. Besides, pre-binds
+    // each variable with 'undefined' before performing the
+    // real bindings. I think this is meaningful only to 
+    // compilers because they must refer to the new storage
+    // when generating code for any lambdas in the <exp>'s.
+    // With interpreters this doesn't matter because the 
+    // lambdas are not inspected during this binding, only
+    // when they are later executed.
+    fn newBindingsRec(self: *Self, list: Sexpr) !*Environ {
+        var lst = try car(list);
+        const newenv: *Environ = try allocator.create(Environ);
+        newenv.* = .{
+            .outer = self,
+            .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
+        };
+
+        while (lst != nil) {
+            // Pre-bind each variable to 'undefined'
+            const bind = try car(lst);
+            const vname = try car(bind);
+            const tag = @intToEnum(PtrTag, vname & TagMask);
+            if (tag != .symbol)
+                return EvalError.ExpectedSymbol;
+            try newenv.setVar(vname >> TagShift, sxUndef);
+            lst = try cdr(lst);
+        }
+
+        // Now re-scan the variables and perform the real bindings.
+        lst = try car(list);
+
+        while (lst != nil) {
+            // Evaluate expressions and make the bindings in the
+            // new envrironment. When evaluating the expressions,
+            // references to just bound variables can be found in
+            // the new environment (as in let*), but References to
+            // variables bound to 'undefined' are caught by getVar()
+            // and treated as an error. Variables not found are
+            // searched for in the outer scope as usual.
+            try newenv.evalDefine(newenv, try car(lst));
+            lst = try cdr(lst);
+        }
+
+        return newenv;
+    }
+
+    // Expects a list of bindings as ((<var> <exp>)*)
+    // Similar to newBindings() but uses the new environment
     // to evaluate and bind the variables.
     fn newBindingsStar(self: *Self, list: Sexpr) !*Environ {
         var lst = try car(list);
@@ -401,8 +466,11 @@ pub const Environ = struct {
         };
 
         while (lst != nil) {
-            // Evaluate expressions in the current environment but
-            // bind them to variables in the new environment
+            // Evaluate expressions and make the bindings in the
+            // new envrironment. When evaluating the expressions,
+            // references to just bound variables can be found in
+            // the new environment. Variables not found there are
+            // searched for in the outer scope as usual.
             try newenv.evalDefine(newenv, try car(lst));
             lst = try cdr(lst);
         }

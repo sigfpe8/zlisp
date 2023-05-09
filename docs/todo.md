@@ -21,9 +21,8 @@
 * cond
 * case
 * and/or
-* letrec
 * do
-* set!
+* set!/set-car!/set-cdr!
 
 ## Library procedures
 
