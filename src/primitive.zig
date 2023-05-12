@@ -346,10 +346,16 @@ fn pDiv(args: []Sexpr) EvalError!Sexpr {
     // Perform divisions as floats
     var result: f64 = getAsFloat(args[0]);
     for (args[1..]) |arg| {
-        result = result / getAsFloat(arg);
+        const div = getAsFloat(arg);
+        if (div == 0.0)
+            return EvalError.DivisionByZero;
+        result = result / div;
     }
-    if (args.len == 1)
+    if (args.len == 1) {
+        if (result == 0.0)
+            return EvalError.DivisionByZero;
         result = 1.0 / result;
+    }
     const iresult: i64 = @floatToInt(i64, result);
     // Return integer if possible
     if (@intToFloat(f64, iresult) == result)
