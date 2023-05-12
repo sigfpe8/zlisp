@@ -17,6 +17,7 @@ const Cell = cell.Cell;
 const Proc = proc.Proc;
 const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
+const sxTrue = sexp.sxTrue;
 const sxUndef = sexp.sxUndef;
 const print = std.debug.print;
 const printSexpr = @import("parser.zig").printSexpr;
@@ -50,6 +51,7 @@ pub const EvalError = error{
 };
 
 // Scheme keywords (special forms)
+pub var kwAnd:     SymbolId = undefined;
 pub var kwBegin:   SymbolId = undefined;
 pub var kwDefine:  SymbolId = undefined;
 pub var kwIf:      SymbolId = undefined;
@@ -57,6 +59,7 @@ pub var kwLambda:  SymbolId = undefined;
 pub var kwLet:     SymbolId = undefined;
 pub var kwLetRec:  SymbolId = undefined;
 pub var kwLetStar: SymbolId = undefined;
+pub var kwOr:      SymbolId = undefined;
 pub var kwQuote:   SymbolId = undefined;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -68,6 +71,7 @@ pub var globalEnv = Environ{
 };
 
 pub fn internKeywords() !void {
+    kwAnd     = try sym.intern("and");
     kwBegin   = try sym.intern("begin");
     kwDefine  = try sym.intern("define");
     kwIf      = try sym.intern("if");
@@ -75,6 +79,7 @@ pub fn internKeywords() !void {
     kwLet     = try sym.intern("let");
     kwLetRec  = try sym.intern("letrec");
     kwLetStar = try sym.intern("let*");
+    kwOr      = try sym.intern("or");
     kwQuote   = try sym.intern("quote");
 }
 
@@ -236,6 +241,34 @@ pub const Environ = struct {
                         const blen = vec.vecArray[bid];
                         const body = vec.vecArray[bid+1..bid+1+blen];
                         return try self.evalBody(body);
+                    }
+
+                    if (carptr == kwAnd) {    // (and <exp>*)
+                        var tst = dot.cdr;
+                        exp = sxTrue;
+
+                        while (tst != nil) {
+                            exp = try self.eval(try car(tst));
+                            if (exp == sxFalse)
+                                break;
+                            tst = try cdr(tst);
+                        }
+
+                        return exp;
+                    }
+
+                    if (carptr == kwOr) {    // (or <exp>*)
+                        var tst = dot.cdr;
+                        exp = sxFalse;
+
+                        while (tst != nil) {
+                            exp = try self.eval(try car(tst));
+                            if (exp != sxFalse)
+                                break;
+                            tst = try cdr(tst);
+                        }
+
+                        return exp;
                     }
                 }
                 // Must be function application
