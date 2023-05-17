@@ -4,7 +4,6 @@ const Lexer = lex.Lexer;
 const parser = @import("parser.zig");
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
-const env = @import("eval.zig");
 const sym = @import("symbol.zig");
 const prim = @import("primitive.zig");
 const vec = @import("vector.zig");
@@ -12,6 +11,7 @@ const proc = @import("procedure.zig");
 const eval = @import("eval.zig");
 const sexp = @import("sexpr.zig");
 const str = @import("string.zig");
+const spc = @import("special.zig");
 const Proc = proc.Proc;
 const PtrTag = sexp.PtrTag;
 const TagMask = sexp.TagMask;
@@ -48,7 +48,8 @@ pub fn main() !void {
     try str.init();
     defer str.deinit();
 
-    try env.internKeywords();
+    try eval.internKeywords();
+    try spc.init();
     try prim.init();
 
     var buf: [2048]u8 = undefined;

@@ -40,17 +40,27 @@ pub const TagShift = 4;
 pub const sxFalse = makeTaggedPtr(0, .boolean);
 pub const sxTrue  = makeTaggedPtr(1, .boolean);
 pub const sxNullVec = makeTaggedPtr(0, .vector);
-pub const sxEnd = makeTaggedPtr(0, .extra);
-pub const sxUndef = makeTaggedPtr(1, .extra);
+pub const sxEnd = makeTaggedPtr(@enumToInt(SpecialTag.end), .special);
+pub const sxUndef = makeTaggedPtr(@enumToInt(SpecialTag.undef), .special);
 pub const nil = makeTaggedPtr(0, .pair);            // == 0 a.k.a. '()
 
 
-pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, extra };
+pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, special };
+
+pub const SpecialTag = enum { form, undef, end };
+pub const SpecialTagMask = 0x7;
+pub const SpecialTagShift = 3;
+
 
 pub const Sexpr = TaggedPtr;
 
 pub fn makeTaggedPtr(ptr: UntaggedPtr, tag: PtrTag) TaggedPtr {
     return (ptr << TagShift) | @enumToInt(tag);
+}
+
+pub fn makeSpecialPtr(ptr: UntaggedPtr, tag: SpecialTag) TaggedPtr {
+    const spc = (ptr << SpecialTagShift) | @enumToInt(tag);
+    return makeTaggedPtr(spc, .special);
 }
 
 pub fn makePair(pcar: Sexpr, pcdr: Sexpr) !Sexpr {

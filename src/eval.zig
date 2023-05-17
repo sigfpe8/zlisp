@@ -4,15 +4,19 @@ const sym = @import("symbol.zig");
 const cell = @import("cell.zig");
 const prim = @import("primitive.zig");
 const proc = @import("procedure.zig");
+const spc = @import("special.zig");
 const vec = @import("vector.zig");
 
 const Sexpr = sexp.Sexpr;
 const PtrTag = sexp.PtrTag;
+const SpecialTag = sexp.SpecialTag;
 const SymbolId = sym.SymbolId;
 const VectorId = vec.VectorId;
 const ProcId = proc.ProcId;
 const TagShift = sexp.TagShift;
 const TagMask = sexp.TagMask;
+const SpecialTagShift = sexp.SpecialTagShift;
+const SpecialTagMask = sexp.SpecialTagMask;
 const Cell = cell.Cell;
 const Proc = proc.Proc;
 const nil = sexp.nil;
@@ -71,26 +75,26 @@ pub var globalEnv = Environ{
 };
 
 pub fn internKeywords() !void {
-    kwAnd     = try sym.intern("and");
-    kwBegin   = try sym.intern("begin");
-    kwDefine  = try sym.intern("define");
-    kwIf      = try sym.intern("if");
-    kwLambda  = try sym.intern("lambda");
-    kwLet     = try sym.intern("let");
-    kwLetRec  = try sym.intern("letrec");
-    kwLetStar = try sym.intern("let*");
-    kwOr      = try sym.intern("or");
+    // kwAnd     = try sym.intern("and");
+    // kwBegin   = try sym.intern("begin");
+    // kwDefine  = try sym.intern("define");
+    // kwIf      = try sym.intern("if");
+    // kwLambda  = try sym.intern("lambda");
+    // kwLet     = try sym.intern("let");
+    // kwLetRec  = try sym.intern("letrec");
+    // kwLetStar = try sym.intern("let*");
+    // kwOr      = try sym.intern("or");
     kwQuote   = try sym.intern("quote");
 }
 
-fn cons(pcar: Sexpr, pcdr: Sexpr) !Sexpr {
+pub fn cons(pcar: Sexpr, pcdr: Sexpr) !Sexpr {
     const ptr = try Cell.alloc();
     cell.cellArray[ptr].dot.car = pcar;
     cell.cellArray[ptr].dot.cdr = pcdr;
     return makeTaggedPtr(ptr, .pair);
 }
 
-fn car(sexpr: Sexpr) !Sexpr {
+pub fn car(sexpr: Sexpr) !Sexpr {
     const tag = @intToEnum(PtrTag, sexpr & TagMask);
     const exp = sexpr >> TagShift;
     if (tag != .pair)
@@ -98,7 +102,7 @@ fn car(sexpr: Sexpr) !Sexpr {
     return cell.cellArray[exp].dot.car;
 }
 
-fn cdr(sexpr: Sexpr) !Sexpr {
+pub fn cdr(sexpr: Sexpr) !Sexpr {
     const tag = @intToEnum(PtrTag, sexpr & TagMask);
     const exp = sexpr >> TagShift;
     if (tag != .pair)
@@ -106,21 +110,21 @@ fn cdr(sexpr: Sexpr) !Sexpr {
     return cell.cellArray[exp].dot.cdr;
 }
 
-fn cadr(sexpr: Sexpr) !Sexpr {
-    var ptr = sexpr;
-    // cdr
-    var tag = @intToEnum(PtrTag, ptr & TagMask);
-    var exp = ptr >> TagShift;
-    if (tag != .pair)
-        return EvalError.ExpectedPair;
-    ptr = cell.cellArray[exp].dot.cdr;
-    // car
-    tag = @intToEnum(PtrTag, ptr & TagMask);
-    exp = ptr >> TagShift;
-    if (tag != .pair)
-        return EvalError.ExpectedPair;
-    return cell.cellArray[exp].dot.car;
-}
+// fn cadr(sexpr: Sexpr) !Sexpr {
+//     var ptr = sexpr;
+//     // cdr
+//     var tag = @intToEnum(PtrTag, ptr & TagMask);
+//     var exp = ptr >> TagShift;
+//     if (tag != .pair)
+//         return EvalError.ExpectedPair;
+//     ptr = cell.cellArray[exp].dot.cdr;
+//     // car
+//     tag = @intToEnum(PtrTag, ptr & TagMask);
+//     exp = ptr >> TagShift;
+//     if (tag != .pair)
+//         return EvalError.ExpectedPair;
+//     return cell.cellArray[exp].dot.car;
+// }
 
 fn apply(newenv: *Environ, pid: ProcId, args: []Sexpr) !Sexpr {
     const pt: *Proc = &proc.procArray[pid];
@@ -156,159 +160,49 @@ pub const Environ = struct {
     assoc: std.AutoHashMap(SymbolId, Sexpr),
 
     pub fn eval(self: *Self, sexpr: Sexpr) EvalError!Sexpr {
-        var tag = @intToEnum(PtrTag, sexpr & TagMask);
-        var exp = sexpr >> TagShift;
+        const tag = @intToEnum(PtrTag, sexpr & TagMask);
+        const exp = sexpr >> TagShift;
         switch (tag) {
             .symbol => {
                 return self.getVar(exp);
             },
             .pair => {
-                var dot = cell.cellArray[exp].dot;
-                var cartag = @intToEnum(PtrTag, dot.car & TagMask);
-                var cdrtag = @intToEnum(PtrTag, dot.cdr & TagMask);
-                var carptr = dot.car >> TagShift;
-                var cdrptr = dot.cdr >> TagShift;
+                const dot = cell.cellArray[exp].dot;
+                const cdrtag = @intToEnum(PtrTag, dot.cdr & TagMask);
 
                 // Must be a proper list
                 if (cdrtag != .pair)
                     return EvalError.InvalidSyntax;
 
-                if (cartag == .symbol) { // Check for special forms
-                    if (carptr == kwQuote) { // (quote <exp>)
-                        dot = cell.cellArray[cdrptr].dot;
-                        if (dot.cdr != nil)
-                            return EvalError.ExpectedOneArgument;
-                        return dot.car;
-                    }
-
-                    if (carptr == kwLambda) {  // (lambda <parms> <body>)
-                        const formals = try getFormals(dot.cdr);
-                        const body    = try getBody(dot.cdr);
-                        return makeProc(self, formals, body);
-                    }
-
-                    if (carptr == kwLet) {  // (let ((<var> <exp>)*) <body>)
-                        const env  = try self.newBindings(dot.cdr);
-                        const bid  = try getBody(dot.cdr) >> TagShift;
-                        const blen = vec.vecArray[bid];
-                        const body = vec.vecArray[bid+1..bid+1+blen];
-                        return try env.evalBody(body);
-                    }
-
-                    if (carptr == kwLetRec) {  // (letrec ((<var> <exp>)*) <body>)
-                        const env  = try self.newBindingsRec(dot.cdr);
-                        const bid  = try getBody(dot.cdr) >> TagShift;
-                        const blen = vec.vecArray[bid];
-                        const body = vec.vecArray[bid+1..bid+1+blen];
-                        return try env.evalBody(body);
-                    }
-
-                    if (carptr == kwLetStar) {  // (let* ((<var> <exp>)*) <body>)
-                        const env  = try self.newBindingsStar(dot.cdr);
-                        const bid  = try getBody(dot.cdr) >> TagShift;
-                        const blen = vec.vecArray[bid];
-                        const body = vec.vecArray[bid+1..bid+1+blen];
-                        return try env.evalBody(body);
-                    }
-
-                    if (carptr == kwDefine) { // (define <var> <exp>)
-                        // Use the same (current) environment to evaluate the
-                        // expressions and bind the variables.
-                        try self.evalDefine(self, dot.cdr);
-                        return nil;
-                    }
-
-                    if (carptr == kwIf) {   // (if <test-exp> <then-exp> <else-exp>)
-                        // const testExp = try self.eval(try car(dot.cdr));
-                        var tstexp: Sexpr = dot.cdr;
-                        var thnexp: Sexpr = try cdr(tstexp);
-                        var elsexp: Sexpr = try cdr(thnexp);
-                        const end:  Sexpr = try cdr(elsexp);
-                        if (end != nil)
-                            return EvalError.ExpectedThreeArguments;
-                        tstexp = try self.eval(try car(tstexp));
-                        // Anything different from #f is true
-                        if (tstexp != sxFalse) {
-                            exp = try car(thnexp);
-                        } else {
-                            exp = try car(elsexp);
-                        }
-                        return try self.eval(exp);
-                    }
-
-                    if (carptr == kwBegin) {    // (begin <sequence>)
-                        const bid  = try getBody(sexpr) >> TagShift;
-                        const blen = vec.vecArray[bid];
-                        const body = vec.vecArray[bid+1..bid+1+blen];
-                        return try self.evalBody(body);
-                    }
-
-                    if (carptr == kwAnd) {    // (and <exp>*)
-                        var tst = dot.cdr;
-                        exp = sxTrue;
-
-                        while (tst != nil) {
-                            exp = try self.eval(try car(tst));
-                            if (exp == sxFalse)
-                                break;
-                            tst = try cdr(tst);
-                        }
-
-                        return exp;
-                    }
-
-                    if (carptr == kwOr) {    // (or <exp>*)
-                        var tst = dot.cdr;
-                        exp = sxFalse;
-
-                        while (tst != nil) {
-                            exp = try self.eval(try car(tst));
-                            if (exp != sxFalse)
-                                break;
-                            tst = try cdr(tst);
-                        }
-
-                        return exp;
-                    }
-                }
-                // Must be function application
-                return try self.evalApplication(dot.car, dot.cdr);
+                return try self.evalList(dot.car, dot.cdr);
             },
             else => {
                 // Auto-quote, i.e. evaluate to itself
                 return sexpr;
             },
         }
-        return 0;
+        unreachable;
     }
 
-    fn evalDefine(self: *Self, bindenv: *Self, lst: Sexpr) !void {
-        const vname = try car(lst);
-        const tag = @intToEnum(PtrTag, vname & TagMask);
-        if (tag != .symbol)
-            return EvalError.ExpectedSymbol;
-        var exp = try cdr(lst);
-        const pcdr = try cdr(exp);
-        if (pcdr != nil)
-            return EvalError.ExpectedTwoArguments;
-        exp = try car(exp);
-        exp = try self.eval(exp);
-        try bindenv.setVar(vname >> TagShift, exp);
-    }
-
-    // Evaluate procedure application
-    pub fn evalApplication(self: *Self, pproc: Sexpr, pargs: Sexpr) EvalError!Sexpr {
+    // Evaluate procedure application/special form
+    pub fn evalList(self: *Self, pproc: Sexpr, pargs: Sexpr) EvalError!Sexpr {
         var tvec: [MAXVECSIZE]Sexpr = undefined;
         var len: u32 = 0;
 
         // Evaluate the procedure
         const vproc = try self.eval(pproc);
         const tag = @intToEnum(PtrTag, vproc & TagMask);
-        if (tag != .primitive and tag != .procedure) {
-            print("Expected primitive or procedure in list head\n", .{});
+        var id = vproc >> TagShift;
+        var isProc: bool = true;
+
+        // Special form?
+        if (tag == .special and @intToEnum(SpecialTag, id & SpecialTagMask) == .form) {
+            id = id >> SpecialTagShift;
+            isProc = false;
+        } else if (tag != .primitive and tag != .procedure) {
+            print("Expected primitive, procedure or special form in list head\n", .{});
             return EvalError.ExpectedProcedure;
         }
-        const pid = vproc >> TagShift;
 
         // Evaluate the arguments and put them in a local array
         var list = pargs;
@@ -316,35 +210,34 @@ pub const Environ = struct {
             if (len == MAXVECSIZE)
                 return EvalError.TooManyArguments;
 
-            const arg = try self.eval(try car(list));
+            var arg = try car(list);
+            if (isProc) {
+                arg = try self.eval(arg);
+            }
+
             tvec[len] = arg;
             len += 1;
             list = try cdr(list);
         }
 
-        if (tag == .primitive) {
-            return try prim.apply(pid, tvec[0..len]);
-        } else { // .procedure
-            const newenv: *Environ = try allocator.create(Environ);
-            newenv.* = .{
-                .outer = null,
-                .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
-            };
-            return try apply(newenv, pid, tvec[0..len]);
+        switch (tag) {
+            .special => {
+                return try spc.apply(self, id, tvec[0..len]);
+            },
+            .primitive => {
+                return try prim.apply(id, tvec[0..len]);
+            },
+            .procedure => {
+                const newenv: *Environ = try allocator.create(Environ);
+                newenv.* = .{
+                    .outer = null,
+                    .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
+                };
+                return try apply(newenv, id, tvec[0..len]);
+            },
+            else => unreachable,
         }
-    }
-
-    pub fn evalBody(self: *Self, body: []Sexpr) EvalError!Sexpr {
-        var val: Sexpr = nil;
-        var i: usize = 0;
-    
-        // Evaluate all expressions in the sequence
-        // Return the value of the last one
-        while (i < body.len) : (i += 1) {
-            val  = try self.eval(body[i]);
-        }
-
-        return val;
+        unreachable;
     }
 
     pub fn setVar(self: *Self, symbol: SymbolId, expr: Sexpr) !void {
@@ -375,55 +268,36 @@ pub const Environ = struct {
         return EvalError.UndefinedVariable;
     }
 
-    // Expects a list of variables (formal parameters)
-    // Puts them into a vector for easy access
-    fn getFormals(lst: Sexpr) !Sexpr {
-        var ptr = try car(lst);
-        var tvec: [MAXVECSIZE]Sexpr = undefined;
-        var len: u32 = 0;
-        var tag: PtrTag = @intToEnum(PtrTag, ptr & TagMask);
-        
-        if (tag != .pair)
-            return EvalError.ExpectedList;
-
-        while (ptr != nil) {
-            if (len == MAXVECSIZE)
-                return EvalError.TooManyFormals;
-            const vname = try car(ptr);
-            tag = @intToEnum(PtrTag, vname & TagMask);
-            if (tag != .symbol)
-                return EvalError.ExpectedVariable;
-            tvec[len] = vname;
-            len += 1;
-            ptr = try cdr(ptr);
+    pub fn evalBody(self: *Self, body: []Sexpr) EvalError!Sexpr {
+        var val: Sexpr = nil;
+        var i: usize = 0;
+    
+        // Evaluate all expressions in the sequence
+        // Return the value of the last one
+        while (i < body.len) : (i += 1) {
+            val  = try self.eval(body[i]);
         }
 
-        return makeVector(tvec[0..len]);
+        return val;
     }
 
-    // Expects a sequence of expressions
-    // (lambda (<formals>) <exp>+)
-    // Puts them into a vector for easy access
-    fn getBody(lst: Sexpr) !Sexpr {
-        var ptr = try cdr(lst);
-        var tvec: [MAXVECSIZE]Sexpr = undefined;
-        var len: u32 = 0;
-
-        while (ptr != nil) {
-            if (len == MAXVECSIZE)
-                return EvalError.TooManyFormals;
-            const exp = try car(ptr);
-            tvec[len] = exp;
-            len += 1;
-            ptr = try cdr(ptr);
-        }
-
-        return makeVector(tvec[0..len]);
+    pub fn evalBind(self: *Self, bindenv: *Self, lst: Sexpr) !void {
+        const vname = try car(lst);
+        const tag = @intToEnum(PtrTag, vname & TagMask);
+        if (tag != .symbol)
+            return EvalError.ExpectedSymbol;
+        var exp = try cdr(lst);
+        const pcdr = try cdr(exp);
+        if (pcdr != nil)
+            return EvalError.ExpectedTwoArguments;
+        exp = try car(exp);
+        exp = try self.eval(exp);
+        try bindenv.setVar(vname >> TagShift, exp);
     }
 
     // Expects a list of bindings as ((<var> <exp>)*)
-    fn newBindings(self: *Self, list: Sexpr) !*Environ {
-        var lst = try car(list);
+    pub fn newBindings(self: *Self, list: Sexpr) !*Environ {
+        var lst = list;
         const newenv: *Environ = try allocator.create(Environ);
         newenv.* = .{
             .outer = self,
@@ -433,7 +307,7 @@ pub const Environ = struct {
         while (lst != nil) {
             // Evaluate expressions in the current environment but
             // bind them to variables in the new environment
-            try self.evalDefine(newenv, try car(lst));
+            try self.evalBind(newenv, try car(lst));
             lst = try cdr(lst);
         }
 
@@ -450,8 +324,8 @@ pub const Environ = struct {
     // With interpreters this doesn't matter because the 
     // lambdas are not inspected during this binding, only
     // when they are later executed.
-    fn newBindingsRec(self: *Self, list: Sexpr) !*Environ {
-        var lst = try car(list);
+    pub fn newBindingsRec(self: *Self, list: Sexpr) !*Environ {
+        var lst = list;
         const newenv: *Environ = try allocator.create(Environ);
         newenv.* = .{
             .outer = self,
@@ -470,7 +344,7 @@ pub const Environ = struct {
         }
 
         // Now re-scan the variables and perform the real bindings.
-        lst = try car(list);
+        lst = list;
 
         while (lst != nil) {
             // Evaluate expressions and make the bindings in the
@@ -480,7 +354,7 @@ pub const Environ = struct {
             // variables bound to 'undefined' are caught by getVar()
             // and treated as an error. Variables not found are
             // searched for in the outer scope as usual.
-            try newenv.evalDefine(newenv, try car(lst));
+            try newenv.evalBind(newenv, try car(lst));
             lst = try cdr(lst);
         }
 
@@ -490,8 +364,8 @@ pub const Environ = struct {
     // Expects a list of bindings as ((<var> <exp>)*)
     // Similar to newBindings() but uses the new environment
     // to evaluate and bind the variables.
-    fn newBindingsStar(self: *Self, list: Sexpr) !*Environ {
-        var lst = try car(list);
+    pub fn newBindingsStar(self: *Self, list: Sexpr) !*Environ {
+        var lst = list;
         const newenv: *Environ = try allocator.create(Environ);
         newenv.* = .{
             .outer = self,
@@ -504,7 +378,7 @@ pub const Environ = struct {
             // references to just bound variables can be found in
             // the new environment. Variables not found there are
             // searched for in the outer scope as usual.
-            try newenv.evalDefine(newenv, try car(lst));
+            try newenv.evalBind(newenv, try car(lst));
             lst = try cdr(lst);
         }
 

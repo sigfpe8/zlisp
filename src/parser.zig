@@ -9,6 +9,7 @@ const sym = @import("symbol.zig");
 const eval = @import("eval.zig");
 const prim = @import("primitive.zig");
 const vec = @import("vector.zig");
+const spc = @import("special.zig");
 const print = std.debug.print;
 
 const Sexpr = sexp.Sexpr;
@@ -17,6 +18,7 @@ const UntaggedPtr = sexp.UntaggedPtr;
 const TaggedInt = sexp.TaggedInt;
 const UntaggedInt = sexp.UntaggedInt;
 const PtrTag = sexp.PtrTag;
+const SpecialTag = sexp.SpecialTag;
 const SymbolId = sym.SymbolId;
 const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
@@ -24,6 +26,8 @@ const sxTrue  = sexp.sxTrue;
 const sxEnd = sexp.sxEnd;
 const TagShift = sexp.TagShift;
 const TagMask = sexp.TagMask;
+const SpecialTagShift = sexp.SpecialTagShift;
+const SpecialTagMask = sexp.SpecialTagMask;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeInteger = sexp.makeInteger;
 const makeFloat = sexp.makeFloat;
@@ -188,10 +192,17 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print(")", .{});
         },
         .primitive => {
-            print("#<primitive:{s}>", .{ prim.prim_getName(exp)});
+            print("#<primitive:{s}>", .{prim.getName(exp)});
         },
         .procedure => {
             print("#<procedure>", .{});
+        },
+        .special => {
+            if (@intToEnum(SpecialTag, exp & SpecialTagMask) == .form) {
+                print("#<special-form:{s}>", .{spc.getName(exp >> SpecialTagShift)});
+            } else {
+                print("#<special:unknown:{x}>", .{exp});
+            }
         },
         .string => {
             print("\"{s}\"", .{str.get(exp)});

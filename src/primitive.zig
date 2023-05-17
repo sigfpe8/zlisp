@@ -32,59 +32,60 @@ const unlimited = std.math.maxInt(u32);
 
 pub const PrimitId = u32;
 
-pub const Primit = struct {
+// Function dispatch
+const FunDisp = struct {
     name: []const u8, // Primitive name (e.g. "car")
     func: *const fn ([]Sexpr) EvalError!Sexpr, // Function that implements it (e.g. pCar)
-    minargs: u32,     // Minimum # of arguments (1)
-    maxargs: u32,     // Maximum # of arguments (1)
+    min: u32,         // Minimum # of arguments (1)
+    max: u32,         // Maximum # of arguments (1)
 };
 
-const PrimitTable = [_]Primit{
-    .{ .name = "boolean?",      .func = pBoolPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "car",           .func = pCar,      .minargs = 1, .maxargs = 1, },
-    .{ .name = "cdr",           .func = pCdr,      .minargs = 1, .maxargs = 1, },
-    .{ .name = "cons",          .func = pCons,     .minargs = 2, .maxargs = 2, },
-    .{ .name = "length",        .func = pLength,   .minargs = 1, .maxargs = 1, },
-    .{ .name = "list",          .func = pList,     .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "list?",         .func = pListPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "null?",         .func = pNullPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "number?",       .func = pNumPred,  .minargs = 1, .maxargs = 1, },
-    .{ .name = "pair?",         .func = pPairPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "procedure?",    .func = pProcPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "reverse",       .func = pReverse,  .minargs = 1, .maxargs = 1, },
-    .{ .name = "string?",       .func = pStrPred,  .minargs = 1, .maxargs = 1, },
-    .{ .name = "string-length", .func = pStrLen,   .minargs = 1, .maxargs = 1, },
-    .{ .name = "symbol?",       .func = pSymbPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "vector?",       .func = pVecPred,  .minargs = 1, .maxargs = 1, },
-    .{ .name = "zero?",         .func = pZeroPred, .minargs = 1, .maxargs = 1, },
-    .{ .name = "+",             .func = pPlus,     .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "-",             .func = pMinus,    .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "*",             .func = pTimes,    .minargs = 0, .maxargs = unlimited, },
-    .{ .name = "/",             .func = pDiv,      .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "<",             .func = pLess,     .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "<=",            .func = pLessEq,   .minargs = 1, .maxargs = unlimited, },
-    .{ .name = "=",             .func = pEqual,    .minargs = 1, .maxargs = unlimited, },
-    .{ .name = ">",             .func = pGrt,      .minargs = 1, .maxargs = unlimited, },
-    .{ .name = ">=",            .func = pGrtEq,    .minargs = 1, .maxargs = unlimited, },
+const PrimitTable = [_]FunDisp{
+    .{ .name = "boolean?",      .func = pBoolPred,  .min = 1, .max = 1, },
+    .{ .name = "car",           .func = pCar,       .min = 1, .max = 1, },
+    .{ .name = "cdr",           .func = pCdr,       .min = 1, .max = 1, },
+    .{ .name = "cons",          .func = pCons,      .min = 2, .max = 2, },
+    .{ .name = "length",        .func = pLength,    .min = 1, .max = 1, },
+    .{ .name = "list",          .func = pList,      .min = 0, .max = unlimited, },
+    .{ .name = "list?",         .func = pListPred,  .min = 1, .max = 1, },
+    .{ .name = "null?",         .func = pNullPred,  .min = 1, .max = 1, },
+    .{ .name = "number?",       .func = pNumPred,   .min = 1, .max = 1, },
+    .{ .name = "pair?",         .func = pPairPred,  .min = 1, .max = 1, },
+    .{ .name = "procedure?",    .func = pProcPred,  .min = 1, .max = 1, },
+    .{ .name = "reverse",       .func = pReverse,   .min = 1, .max = 1, },
+    .{ .name = "string?",       .func = pStrPred,   .min = 1, .max = 1, },
+    .{ .name = "string-length", .func = pStrLen,    .min = 1, .max = 1, },
+    .{ .name = "symbol?",       .func = pSymbPred,  .min = 1, .max = 1, },
+    .{ .name = "vector?",       .func = pVecPred,   .min = 1, .max = 1, },
+    .{ .name = "zero?",         .func = pZeroPred,  .min = 1, .max = 1, },
+    .{ .name = "+",             .func = pPlus,      .min = 0, .max = unlimited, },
+    .{ .name = "-",             .func = pMinus,     .min = 1, .max = unlimited, },
+    .{ .name = "*",             .func = pTimes,     .min = 0, .max = unlimited, },
+    .{ .name = "/",             .func = pDiv,       .min = 1, .max = unlimited, },
+    .{ .name = "<",             .func = pLess,      .min = 1, .max = unlimited, },
+    .{ .name = "<=",            .func = pLessEq,    .min = 1, .max = unlimited, },
+    .{ .name = "=",             .func = pEqual,     .min = 1, .max = unlimited, },
+    .{ .name = ">",             .func = pGrt,       .min = 1, .max = unlimited, },
+    .{ .name = ">=",            .func = pGrtEq,     .min = 1, .max = unlimited, },
 };
 
 pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
     const nargs = args.len;
-    const pt: *const Primit = &PrimitTable[pid];
+    const pt: *const FunDisp = &PrimitTable[pid];
 
-    if (pt.minargs == pt.maxargs and pt.minargs != nargs) {
+    if (pt.min == pt.max and pt.min != nargs) {
         print("'{s}' expected {d} argument{s}, got {d}\n",
-            .{ pt.name, pt.minargs, if (pt.minargs == 1) "" else "s", nargs });
+            .{ pt.name, pt.min, if (pt.min == 1) "" else "s", nargs });
         return EvalError.WrongNumberOfArguments;
     }
-    if (nargs < pt.minargs) {
+    if (nargs < pt.min) {
         print("'{s}' expected at least {d} argument{s}, got {d}\n",
-            .{ pt.name, pt.minargs, if (pt.minargs == 1) "" else "s", nargs });
+            .{ pt.name, pt.min, if (pt.min == 1) "" else "s", nargs });
         return EvalError.WrongNumberOfArguments;
     }
-    if (nargs > pt.maxargs) {
+    if (nargs > pt.max) {
         print("'{s}' expected at most {d} argument{s}, got {d}\n",
-            .{ pt.name, pt.maxargs, if (pt.maxargs == 1) "" else "s", nargs });
+            .{ pt.name, pt.max, if (pt.max == 1) "" else "s", nargs });
         return EvalError.WrongNumberOfArguments;
     }
 
@@ -102,7 +103,7 @@ pub fn init() !void {
     }
 }
 
-pub fn prim_getName(id: PrimitId) []const u8 {
+pub fn getName(id: PrimitId) []const u8 {
     return PrimitTable[id].name;
 }
 
@@ -506,9 +507,4 @@ fn pGrtEq(args: []Sexpr) EvalError!Sexpr {
         else => unreachable,
     }
     unreachable;
-}
-
-const expect = @import("std").testing.expect;
-test "primitives" {
-    try expect(PrimitTable.len == 2);
 }
