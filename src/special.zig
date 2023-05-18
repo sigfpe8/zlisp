@@ -45,6 +45,7 @@ pub const SFormId = u32;
 const SFormTable = [_]FunDisp{
     .{ .name = "and",         .func = sfAnd,      .min = 0, .max = unlimited, },
     .{ .name = "begin",       .func = sfBegin,    .min = 2, .max = unlimited, },
+    .{ .name = "cond",        .func = sfCond,     .min = 1, .max = unlimited, },
     .{ .name = "define",      .func = sfDefine,   .min = 2, .max = 2, },
     .{ .name = "if",          .func = sfIf,       .min = 3, .max = 3, },
     .{ .name = "lambda",      .func = sfLambda,   .min = 2, .max = unlimited, },
@@ -156,6 +157,20 @@ fn sfBegin(env: *Environ, args: []Sexpr) EvalError!Sexpr {
     const blen = vec.vecArray[bid];
     const body = vec.vecArray[bid+1..bid+1+blen];
     return try env.evalBody(body);
+}
+
+fn sfCond(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+    // (cond <cond clause>+)
+    // (cond <cond clause>* (else <tail sequence>))
+
+    // <cond clause> -> (<test> <tail sequence>)
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const val = try env.evalCondClause(args[i], i == (args.len - 1));
+        if (val != sxUndef) // sxUndef indicates that the clause test failed
+            return val;     // Found a true clause, return its value
+    }
+    return sxFalse; // No true clause
 }
 
 fn sfDefine(env: *Environ, args: []Sexpr) EvalError!Sexpr {

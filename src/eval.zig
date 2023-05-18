@@ -52,12 +52,14 @@ pub const EvalError = error{
     TooFewArguments,
     OutOfMemory,
     DivisionByZero,
+    ElseClauseMustBeLast,
 };
 
 // Scheme keywords (special forms)
 pub var kwAnd:     SymbolId = undefined;
 pub var kwBegin:   SymbolId = undefined;
 pub var kwDefine:  SymbolId = undefined;
+pub var kwElse:    SymbolId = undefined;
 pub var kwIf:      SymbolId = undefined;
 pub var kwLambda:  SymbolId = undefined;
 pub var kwLet:     SymbolId = undefined;
@@ -78,6 +80,7 @@ pub fn internKeywords() !void {
     // kwAnd     = try sym.intern("and");
     // kwBegin   = try sym.intern("begin");
     // kwDefine  = try sym.intern("define");
+    kwElse    = try sym.intern("else");
     // kwIf      = try sym.intern("if");
     // kwLambda  = try sym.intern("lambda");
     // kwLet     = try sym.intern("let");
@@ -293,6 +296,36 @@ pub const Environ = struct {
         exp = try car(exp);
         exp = try self.eval(exp);
         try bindenv.setVar(vname >> TagShift, exp);
+    }
+
+    pub fn evalCondClause(self: *Self, list:Sexpr, last: bool) EvalError!Sexpr {
+        // <cond clause> -> (<test> <tail sequence>) |
+        //                  (<test> => <exp>) |
+        //                  (else <tail sequence>)
+
+        // If the <test> is true, return the value of the last expression in <tail sequence>
+        // Otherwise return sxUndef to indicate that the test failed
+        var tst = try car(list);
+        const tag = @intToEnum(PtrTag, tst & TagMask);
+        if (tag == .symbol and (tst >> TagShift) == kwElse) {
+            if (!last)
+                return EvalError.ElseClauseMustBeLast;
+        } else {
+            tst = try self.eval(tst);
+            if (tst == sxFalse)
+                return sxUndef;
+        }
+
+        // <tst> is either true or 'else'
+        // Evaluate tail sequence
+        var lst = try cdr(list);
+        var val = tst;
+        while (lst != nil) {
+            val = try self.eval(try car(lst));
+            lst = try cdr(lst);
+        }
+
+        return val;
     }
 
     // Expects a list of bindings as ((<var> <exp>)*)
