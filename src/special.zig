@@ -30,6 +30,7 @@ const MAXVECSIZE = vec.MAXVECSIZE;
 const car = eval.car;
 const cdr = eval.cdr;
 const cons = eval.cons;
+const quoteExpr = eval.quoteExpr;
 const unlimited = std.math.maxInt(u32);
 
 // Function dispatch
@@ -43,17 +44,20 @@ const FunDisp = struct {
 pub const SFormId = u32;
 
 const SFormTable = [_]FunDisp{
-    .{ .name = "and",         .func = sfAnd,      .min = 0, .max = unlimited, },
-    .{ .name = "begin",       .func = sfBegin,    .min = 2, .max = unlimited, },
-    .{ .name = "cond",        .func = sfCond,     .min = 1, .max = unlimited, },
-    .{ .name = "define",      .func = sfDefine,   .min = 2, .max = 2, },
-    .{ .name = "if",          .func = sfIf,       .min = 3, .max = 3, },
-    .{ .name = "lambda",      .func = sfLambda,   .min = 2, .max = unlimited, },
-    .{ .name = "let",         .func = sfLet,      .min = 2, .max = unlimited, },
-    .{ .name = "letrec",      .func = sfLetrec,   .min = 2, .max = unlimited, },
-    .{ .name = "let*",        .func = sfLetstar,  .min = 2, .max = unlimited, },
-    .{ .name = "or",          .func = sfOr,       .min = 0, .max = unlimited, },
-    .{ .name = "quote",       .func = sfQuote,    .min = 1, .max = 1, },
+    .{ .name = "and",              .func = sfAnd,        .min = 0, .max = unlimited, },
+    .{ .name = "begin",            .func = sfBegin,      .min = 2, .max = unlimited, },
+    .{ .name = "cond",             .func = sfCond,       .min = 1, .max = unlimited, },
+    .{ .name = "define",           .func = sfDefine,     .min = 2, .max = 2, },
+    .{ .name = "if",               .func = sfIf,         .min = 3, .max = 3, },
+    .{ .name = "lambda",           .func = sfLambda,     .min = 2, .max = unlimited, },
+    .{ .name = "let",              .func = sfLet,        .min = 2, .max = unlimited, },
+    .{ .name = "letrec",           .func = sfLetrec,     .min = 2, .max = unlimited, },
+    .{ .name = "let*",             .func = sfLetstar,    .min = 2, .max = unlimited, },
+    .{ .name = "or",               .func = sfOr,         .min = 0, .max = unlimited, },
+    .{ .name = "quasiquote",       .func = sfQuasiquote, .min = 1, .max = 1, },
+    .{ .name = "quote",            .func = sfQuote,      .min = 1, .max = 1, },
+    .{ .name = "unquote",          .func = sfUnquote,    .min = 1, .max = 1, },
+    .{ .name = "unquote-splicing", .func = sfUnquote,    .min = 1, .max = 1, },
 };
 
 pub fn apply(env: *Environ, pid: SFormId, args: []Sexpr) EvalError!Sexpr {
@@ -246,8 +250,165 @@ fn sfOr(env: *Environ, args: []Sexpr) EvalError!Sexpr {
     return val;
 }
 
+fn sfQuasiquote(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+    // (quasiquote <exp>)
+    return QuasiquoteRec(env, args[0], 1);
+}
+
+// Append list2 to list1
+fn append(list1: Sexpr, list2: Sexpr) EvalError!Sexpr {
+    if (list1 == nil)
+        return list2;
+    if (list2 == nil)
+        return list1;
+
+    // list1 and list2 are proper lists
+    return try cons(try car(list1), try append(try cdr(list1), list2));
+}
+
+// Check if argument is (quasiquote | unquote | unquote-solicing <exp>)
+
+const QqRes = union(enum) {
+    regular: Sexpr,     // Result from ` or ,
+    splicing: Sexpr,    // Result from ,@
+    none: bool,         // No quote/unquote found
+};
+
+fn qqRec(env: *Environ, arg: Sexpr, level: usize) EvalError!QqRes {
+    var qval = arg;
+    var tag = @intToEnum(PtrTag, arg & TagMask);
+    var splicing = false;
+    var foundQuote = false;
+
+    if (tag == .pair) {
+        var qcar: Sexpr = try car(arg);
+        tag = @intToEnum(PtrTag, qcar & TagMask);
+        qcar = qcar >> TagShift;
+        if (tag == .symbol) {
+            if (qcar == eval.kwQuasiquote or qcar == eval.kwUnquote or qcar == eval.kwUnquote_spl or qcar == eval.kwQuote) {
+                var qcdr = try cdr(arg);
+                var qarg = try car(qcdr);
+                if (try cdr(qcdr) != nil)
+                    return EvalError.QuasiquoteExpectsOnly1Argument;
+                foundQuote = true;
+                if (qcar == eval.kwQuasiquote) {            // (quasiquote qarg)
+                    qval = try QuasiquoteRec(env, qarg, level + 1);
+                    if (level > 0)
+                        qval = try quoteExpr(eval.kwQuasiquote, qval);
+                } else if (qcar == eval.kwUnquote) {        // (unquote qarg)
+                    qval = try UnquoteRec(env, qarg, level - 1);
+                    if (level > 1)
+                        qval = try quoteExpr(eval.kwUnquote, qval);
+                } else if (qcar == eval.kwUnquote_spl) {    // (unquote-splicing qarg)
+                    qval = try UnquoteRec(env, qarg, level - 1);
+                    tag = @intToEnum(PtrTag, qval & TagMask);
+                    if (tag != .pair)
+                        return EvalError.UnquoteSplicingMustBeList;
+                    if (level > 1) {
+                        qval = try quoteExpr(eval.kwUnquote_spl, qval);
+                    } else
+                        splicing = true;
+                } else {                                    // (quote qarg)
+                    qval = try QuasiquoteRec(env, qarg, level);
+                    if (level > 0)
+                        qval = try quoteExpr(eval.kwQuote, qval);
+                }
+            }
+        }
+    }
+
+    if (!foundQuote)
+        return QqRes{ .none = true };
+
+    if (splicing)
+        return QqRes{ .splicing = qval };
+
+    return QqRes{ .regular = qval };
+}
+
+fn QuasiquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
+// print("QQRec(level={d}): ", .{level});
+// printSexpr(arg, true) catch {};
+// print("\n", .{});
+
+    var tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .pair or arg == nil)
+        return arg;
+
+    // The quasiquote argument is a non-nil list
+    // Check if it is one of ` , ,@
+    switch (try qqRec(env, arg, level)) {
+        .none => {},
+        .regular => |val| return val,
+        .splicing => return EvalError.InvalidQuasiquoteElement,
+    }
+
+    var lst = arg;
+    var res: Sexpr = nil;
+
+    while (lst != nil) : (lst = try cdr(lst)) {
+        var qarg = try car(lst);
+        switch (try qqRec(env, qarg, level)) {
+            .none => {
+                qarg = try cons(qarg, nil);
+            },
+            .regular => |val| {
+                qarg = try cons(val, nil);
+            },
+            .splicing => |val| qarg = val,
+        }
+
+        res = try append(res, qarg);
+    }
+    return res;
+}
+
+fn UnquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
+    if (level == 0)
+        return try env.eval(arg);
+
+    var tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .pair or arg == nil)
+        return arg;
+
+    // The unquote argument is a non-nil list
+    // Check if it is one of ` , ,@
+    switch (try qqRec(env, arg, level)) {
+        .none => {},
+        .regular => |val| return val,
+        .splicing => return EvalError.InvalidQuasiquoteElement,
+    }
+
+    var lst = arg;
+    var res: Sexpr = nil;
+    var splicing = false;
+
+    while (lst != nil) : (lst = try cdr(lst)) {
+        var qarg = try car(lst);
+        switch (try qqRec(env, qarg, level)) {
+            .none => {
+                qarg = try cons(qarg, nil);
+            },
+            .regular => |val| {
+                qarg = try cons(val, nil);
+            },
+            .splicing => |val| qarg = val,
+        }
+
+        res = try append(res, qarg);
+        splicing = false;
+    }
+    return res;
+}
+
 fn sfQuote(env: *Environ, args: []Sexpr) EvalError!Sexpr {
     // (quote <exp>)
     _ = env;
     return args[0];
+}
+
+fn sfUnquote(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+    _ = env;
+    _ = args[0];
+    return EvalError.UnquoteOutsideQuasiquote;
 }

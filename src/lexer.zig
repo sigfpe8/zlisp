@@ -12,6 +12,9 @@ pub const Token = enum { lparens,       // ( [ {
                          rparens,       // ) ] }
                          dot,           // .
                          quote,         // '
+                         qquote,        // `
+                         unquote,       // ,
+                         unquote_spl,   // ,@
                          hash_f,        // #f
                          hash_t,        // #t
                          hash_vec,      // #(
@@ -163,6 +166,15 @@ pub const Lexer = struct {
             ')', ']', '}' => self.token = .rparens,
             '.' => self.token = .dot,
             '\'' => self.token = .quote,
+            '`' => self.token = .qquote,
+            ',' => {
+                if (self.peekNextChar() == '@') {
+                    self.token = .unquote_spl;
+                    self.nextChar();
+                } else {
+                    self.token = .unquote;
+                }
+            },
             else => self.token = .unknown,
         }
 

@@ -53,20 +53,20 @@ pub const EvalError = error{
     OutOfMemory,
     DivisionByZero,
     ElseClauseMustBeLast,
+    QuasiquoteExpectsOnly1Argument,
+    UnquoteExpectsOnly1Argument,
+    UnquoteSplExpectsOnly1Argument,
+    UnquoteSplicingMustBeList,
+    InvalidQuasiquoteElement,
+    UnquoteOutsideQuasiquote,
 };
 
 // Scheme keywords (special forms)
-pub var kwAnd:     SymbolId = undefined;
-pub var kwBegin:   SymbolId = undefined;
-pub var kwDefine:  SymbolId = undefined;
-pub var kwElse:    SymbolId = undefined;
-pub var kwIf:      SymbolId = undefined;
-pub var kwLambda:  SymbolId = undefined;
-pub var kwLet:     SymbolId = undefined;
-pub var kwLetRec:  SymbolId = undefined;
-pub var kwLetStar: SymbolId = undefined;
-pub var kwOr:      SymbolId = undefined;
-pub var kwQuote:   SymbolId = undefined;
+pub var kwElse:        SymbolId = undefined;
+pub var kwQuote:       SymbolId = undefined;
+pub var kwQuasiquote:  SymbolId = undefined;
+pub var kwUnquote:     SymbolId = undefined;
+pub var kwUnquote_spl: SymbolId = undefined;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
@@ -77,17 +77,11 @@ pub var globalEnv = Environ{
 };
 
 pub fn internKeywords() !void {
-    // kwAnd     = try sym.intern("and");
-    // kwBegin   = try sym.intern("begin");
-    // kwDefine  = try sym.intern("define");
-    kwElse    = try sym.intern("else");
-    // kwIf      = try sym.intern("if");
-    // kwLambda  = try sym.intern("lambda");
-    // kwLet     = try sym.intern("let");
-    // kwLetRec  = try sym.intern("letrec");
-    // kwLetStar = try sym.intern("let*");
-    // kwOr      = try sym.intern("or");
-    kwQuote   = try sym.intern("quote");
+    kwElse        = try sym.intern("else");
+    kwQuasiquote  = try sym.intern("quasiquote");
+    kwQuote       = try sym.intern("quote");
+    kwUnquote     = try sym.intern("unquote");
+    kwUnquote_spl = try sym.intern("unquote-splicing");
 }
 
 pub fn cons(pcar: Sexpr, pcdr: Sexpr) !Sexpr {
@@ -111,6 +105,16 @@ pub fn cdr(sexpr: Sexpr) !Sexpr {
     if (tag != .pair)
         return EvalError.ExpectedPair;
     return cell.cellArray[exp].dot.cdr;
+}
+
+pub fn quoteExpr(name: SymbolId, expr: Sexpr) !Sexpr {
+    var ptr1 = try Cell.alloc();
+    cell.cellArray[ptr1].dot.car = expr;
+    cell.cellArray[ptr1].dot.cdr = nil;
+    var ptr2 = try Cell.alloc();
+    cell.cellArray[ptr2].dot.car = makeTaggedPtr(name, .symbol);
+    cell.cellArray[ptr2].dot.cdr = makeTaggedPtr(ptr1, .pair);
+    return makeTaggedPtr(ptr2, .pair);
 }
 
 // fn cadr(sexpr: Sexpr) !Sexpr {

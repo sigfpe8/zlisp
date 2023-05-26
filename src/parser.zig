@@ -33,6 +33,7 @@ const makeInteger = sexp.makeInteger;
 const makeFloat = sexp.makeFloat;
 const makeVector = sexp.makeVector;
 const ReadError = lex.ReadError;
+const quoteExpr = eval.quoteExpr;
 
 const ParsingError = error{
     ExpectedRightParenthesis,
@@ -79,16 +80,18 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             }
             return list;
         },
-        .quote => {
-            try lexer.nextToken(); // Skip '
-            var expr = try parseSexpr(lexer);
-            var ptr1 = try Cell.alloc();
-            cell.cellArray[ptr1].dot.car = expr;
-            cell.cellArray[ptr1].dot.cdr = 0;
-            var ptr2 = try Cell.alloc();
-            cell.cellArray[ptr2].dot.car = makeTaggedPtr(eval.kwQuote, .symbol);
-            cell.cellArray[ptr2].dot.cdr = makeTaggedPtr(ptr1, .pair);
-            return makeTaggedPtr(ptr2, .pair);
+        .quote, .qquote, .unquote, .unquote_spl => {
+            const name = switch (lexer.token) {
+                .quote => eval.kwQuote,
+                .qquote => eval.kwQuasiquote,
+                .unquote => eval.kwUnquote,
+                .unquote_spl => eval.kwUnquote_spl,
+                else => unreachable,
+            };
+            // Transform '<exp> into (quote <exp>), similarly for ` , ,@
+            try lexer.nextToken(); // Skip ' or ` or , or ,@
+            const expr = try parseSexpr(lexer);
+            return try quoteExpr(name, expr);
         },
         .hash_f => {
             return sxFalse;
