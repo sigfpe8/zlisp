@@ -2,7 +2,7 @@
 
 * character datatype
 * port datatype
-* Quasiquotation
+* Quasiquotation for vectors
 * Ports Input/Output
 * delay/force
 * Continuations
@@ -18,15 +18,13 @@
 
 ## Basic primitives
 
-* cond
 * case
-* and/or
 * do
 * set!/set-car!/set-cdr!
 
 ## Library procedures
 
-* Math procedures (zero?, positive?, modulo, sin, cos, etc.)
+* Math procedures (positive?, modulo, sin, cos, etc.)
 * String/char procedures (string-ref, char->integer, etc.)
 * Vector procedures (vector, vector-ref, etc.)
 * Add Scheme unit tests
