@@ -217,13 +217,18 @@ pub const Lexer = struct {
             '(' => { self.token = .hash_vec; self.rparens = ')'; },
             '[' => { self.token = .hash_vec; self.rparens = ']'; },
             '{' => { self.token = .hash_vec; self.rparens = '}'; },
-            '\\' => {
-                self.token = .hash_char;
-            },
+            '\\' => { return self.parseChar(); },
             else => self.token = .unknown,
         }
         self.nextChar();
-        return;
+    }
+
+    fn parseChar(self: *Lexer) void {
+        self.nextChar();    // Skip \ 
+        // For now expect only a single ASCII character
+        self.token = .hash_char;
+        self.xvalue = self.cchar;
+        self.nextChar();    // Skip character
     }
 
     fn parseNumber(self: *Lexer) void {

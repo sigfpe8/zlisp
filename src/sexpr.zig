@@ -114,3 +114,8 @@ pub fn makeProc(env: *Environ, formals: Sexpr, body: Sexpr) !Sexpr {
     ptr.body    = body;
     return makeTaggedPtr(pid, .procedure);
 }
+
+pub fn makeChar(code: i64) Sexpr {
+    const val = @truncate(UntaggedInt, code);
+    return makeTaggedPtr(@bitCast(UntaggedPtr, val), .char);  
+}

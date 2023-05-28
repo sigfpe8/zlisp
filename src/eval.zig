@@ -41,7 +41,9 @@ pub const EvalError = error{
     ExpectedSymbol,
     ExpectedVariable,
     ExpectedList,
+    ExpectedInteger,
     ExpectedNumber,
+    ExpectedCharacter,
     ExpectedString,
     ExpectedProcedure,
     DefineFailed,
@@ -59,6 +61,8 @@ pub const EvalError = error{
     UnquoteSplicingMustBeList,
     InvalidQuasiquoteElement,
     UnquoteOutsideQuasiquote,
+    InvalidUnicodeValue,
+    InvalidReference,
 };
 
 // Scheme keywords (special forms)

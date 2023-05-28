@@ -114,6 +114,9 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
             }
             return vexp;
         },
+        . hash_char => {
+            return makeTaggedPtr(lexer.xvalue, .char);
+        },
         else => return nil,
     }
     unreachable;
@@ -185,6 +188,9 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
         .boolean => {
             print("#{s}", .{ if (exp == 0) "f" else "t" });
         },
+        .char => {
+            print("#\\{c}", .{@truncate(u8, exp)});
+        },
         .pair => {
             const ptr = cell.cellArray[exp].dot;
             if (quoted)
@@ -230,9 +236,6 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
                     print(" ", .{});
             }
             print(")", .{});
-        },
-        else => {
-            print("?", .{});
         },
     }
 }

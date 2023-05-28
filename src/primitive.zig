@@ -21,6 +21,7 @@ const makeTaggedPtr = sexp.makeTaggedPtr;
 const makePair = sexp.makePair;
 const makeInteger = sexp.makeInteger;
 const makeFloat = sexp.makeFloat;
+const makeChar = sexp.makeChar;
 const unlimited = std.math.maxInt(u32);
 
 // All functions named 'pXXX()' are primitives (a.k.a in Scheme as
@@ -44,7 +45,10 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "boolean?",      .func = pBoolPred,  .min = 1, .max = 1, },
     .{ .name = "car",           .func = pCar,       .min = 1, .max = 1, },
     .{ .name = "cdr",           .func = pCdr,       .min = 1, .max = 1, },
+    .{ .name = "char?",         .func = pCharPred,  .min = 1, .max = 1, },
+    .{ .name = "char->integer", .func = pCharToInt, .min = 1, .max = 1, },
     .{ .name = "cons",          .func = pCons,      .min = 2, .max = 2, },
+    .{ .name = "integer->char", .func = pIntToChar, .min = 1, .max = 1, },
     .{ .name = "length",        .func = pLength,    .min = 1, .max = 1, },
     .{ .name = "list",          .func = pList,      .min = 0, .max = unlimited, },
     .{ .name = "list?",         .func = pListPred,  .min = 1, .max = 1, },
@@ -55,6 +59,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "reverse",       .func = pReverse,   .min = 1, .max = 1, },
     .{ .name = "string?",       .func = pStrPred,   .min = 1, .max = 1, },
     .{ .name = "string-length", .func = pStrLen,    .min = 1, .max = 1, },
+    .{ .name = "string-ref",    .func = pStrRef,    .min = 2, .max = 2, },
     .{ .name = "symbol?",       .func = pSymbPred,  .min = 1, .max = 1, },
     .{ .name = "vector?",       .func = pVecPred,   .min = 1, .max = 1, },
     .{ .name = "zero?",         .func = pZeroPred,  .min = 1, .max = 1, },
@@ -107,64 +112,70 @@ pub fn getName(id: PrimitId) []const u8 {
     return PrimitTable[id].name;
 }
 
+// -- Booleans --------------------------------------------
+// (boolean? <exp>)
 fn pBoolPred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .boolean) sxTrue else sxFalse;
 }
 
-fn pNumPred(args: []Sexpr) EvalError!Sexpr {
+
+// -- Characters ------------------------------------------
+fn pCharPred(args: []Sexpr) EvalError!Sexpr {
+    // (char? <exp>)
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    return if (tag == .small_int or tag == .integer or tag == .float) sxTrue else sxFalse;
+    return if (tag == .char) sxTrue else sxFalse;
+}
+
+fn pCharToInt(args: []Sexpr) EvalError!Sexpr {
+    // (char->integer <char>)
+    const val = args[0];
+    const tag = @intToEnum(PtrTag, val & TagMask);
+    if (tag != .char)
+        return EvalError.ExpectedCharacter;
+    return makeInteger(val >> TagShift);
+}
+
+fn pIntToChar(args: []Sexpr) EvalError!Sexpr {
+    // (integer->char <code>)
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    if (tag != .small_int and tag != .integer)
+        return EvalError.ExpectedInteger;
+    const code = getAsInt(args[0]);
+    if (code > 0x10FFFF or code < 0)
+        return EvalError.InvalidUnicodeValue;
+    return makeChar(code);
+}
+
+
+// -- Lists ------------------------------------------------
+fn pListPred(args: []Sexpr) EvalError!Sexpr {
+    // (list? <exp>)
+    var arg = args[0];
+
+    while (arg != nil) {
+        const tag = @intToEnum(PtrTag, arg & TagMask);
+        if (tag != .pair)
+            return sxFalse;
+        arg = cell.cellArray[arg >> TagShift].dot.cdr;
+    }
+
+    return sxTrue;
 }
 
 fn pPairPred(args: []Sexpr) EvalError!Sexpr {
+    // (pair? <exp>)
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .pair) sxTrue else sxFalse;
 }
 
-fn pProcPred(args: []Sexpr) EvalError!Sexpr {
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    return if (tag == .procedure or tag == .primitive) sxTrue else sxFalse;
-}
-
-fn pStrLen(args: []Sexpr) EvalError!Sexpr {
-    const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
-    if (tag != .string)
-        return EvalError.ExpectedString;
-    const len = str.stringsTable.items[exp >> TagShift].len;
-    return makeInteger(len);
-}
-
-fn pStrPred(args: []Sexpr) EvalError!Sexpr {
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    return if (tag == .string) sxTrue else sxFalse;
-}
-
-fn pSymbPred(args: []Sexpr) EvalError!Sexpr {
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    return if (tag == .symbol) sxTrue else sxFalse;
-}
-
-fn pVecPred(args: []Sexpr) EvalError!Sexpr {
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    return if (tag == .vector) sxTrue else sxFalse;
-}
-
-fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
-    const exp = args[0];
-    const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
-    const isZero: bool = switch (tag) {
-        .small_int => ind == 0,
-        .integer => cell.cellArray[ind].int == 0,
-        .float => cell.cellArray[ind].flt == 0.0,
-        else => return EvalError.ExpectedNumber,
-    };
-    return  if (isZero) sxTrue else sxFalse;
+fn pNullPred(args: []Sexpr) EvalError!Sexpr {
+    // (null? <exp>)
+    return if (args[0] == nil) sxTrue else sxFalse;
 }
 
 fn pCar(args: []Sexpr) EvalError!Sexpr {
+    // (car <pair>)
     const exp = args[0];
     const tag = @intToEnum(PtrTag, exp & TagMask);
     if (tag != .pair)
@@ -173,6 +184,7 @@ fn pCar(args: []Sexpr) EvalError!Sexpr {
 }
 
 fn pCdr(args: []Sexpr) EvalError!Sexpr {
+    // (cdr <pair>)
     const exp = args[0];
     const tag = @intToEnum(PtrTag, exp & TagMask);
     if (tag != .pair)
@@ -181,10 +193,12 @@ fn pCdr(args: []Sexpr) EvalError!Sexpr {
 }
 
 fn pCons(args: []Sexpr) EvalError!Sexpr {
+    // (cons <car> <cdr>)
     return makePair(args[0], args[1]);
 }
 
 fn pLength(args: []Sexpr) EvalError!Sexpr {
+    // (length <list>)
     var list = args[0];
     var len: i64 = 0;
 
@@ -200,6 +214,7 @@ fn pLength(args: []Sexpr) EvalError!Sexpr {
 }
 
 fn pList(args: []Sexpr) EvalError!Sexpr {
+    // (list <exp>...)
     var list = nil;
     var i = args.len;
 
@@ -210,20 +225,8 @@ fn pList(args: []Sexpr) EvalError!Sexpr {
     return list;
 }
 
-fn pListPred(args: []Sexpr) EvalError!Sexpr {
-    var arg = args[0];
-
-    while (arg != nil) {
-        const tag = @intToEnum(PtrTag, arg & TagMask);
-        if (tag != .pair)
-            return sxFalse;
-        arg = cell.cellArray[arg >> TagShift].dot.cdr;
-    }
-
-    return sxTrue;
-}
-
 fn pReverse(args: []Sexpr) EvalError!Sexpr {
+    // (reverse <list>)
     var list = nil;
     var arg = args[0];
 
@@ -238,10 +241,27 @@ fn pReverse(args: []Sexpr) EvalError!Sexpr {
     return list;
 }
 
-fn pNullPred(args: []Sexpr) EvalError!Sexpr {
-    return if (args[0] == nil) sxTrue else sxFalse;
+
+// -- Numbers ---------------------------------------------
+fn pNumPred(args: []Sexpr) EvalError!Sexpr {
+    // (number? <exp>)
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .small_int or tag == .integer or tag == .float) sxTrue else sxFalse;
 }
 
+fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
+    // (zero? <exp>)
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const isZero: bool = switch (tag) {
+        .small_int => ind == 0,
+        .integer => cell.cellArray[ind].int == 0,
+        .float => cell.cellArray[ind].flt == 0.0,
+        else => return EvalError.ExpectedNumber,
+    };
+    return  if (isZero) sxTrue else sxFalse;
+}
 
 // Determine the highest number type in a list of arguments
 // float > integer
@@ -275,6 +295,7 @@ fn getAsFloat(num: Sexpr) f64 {
 }
 
 fn pPlus(args: []Sexpr) EvalError!Sexpr {
+    // (+ <num>...)
     if (args.len > 0) {
         switch (try maxNumType(args)) {
             .integer => {
@@ -298,6 +319,7 @@ fn pPlus(args: []Sexpr) EvalError!Sexpr {
 }
 
 fn pMinus(args: []Sexpr) EvalError!Sexpr {
+    // (- <num>...)
     switch (try maxNumType(args)) {
         .integer => {
             var result: i64 = getAsInt(args[0]);
@@ -321,6 +343,7 @@ fn pMinus(args: []Sexpr) EvalError!Sexpr {
 }
 
 fn pTimes(args: []Sexpr) EvalError!Sexpr {
+    // (* <num>...)
     if (args.len > 0) {
         switch (try maxNumType(args)) {
             .integer => {
@@ -344,6 +367,7 @@ fn pTimes(args: []Sexpr) EvalError!Sexpr {
 }
 
 fn pDiv(args: []Sexpr) EvalError!Sexpr {
+    // (/ <num>...)
     // Perform divisions as floats
     var result: f64 = getAsFloat(args[0]);
     for (args[1..]) |arg| {
@@ -507,4 +531,61 @@ fn pGrtEq(args: []Sexpr) EvalError!Sexpr {
         else => unreachable,
     }
     unreachable;
+}
+
+
+// -- Procedures ------------------------------------------
+fn pProcPred(args: []Sexpr) EvalError!Sexpr {
+    // (procedure? <exp>)
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .procedure or tag == .primitive) sxTrue else sxFalse;
+}
+
+
+// -- Strings ---------------------------------------------
+fn pStrPred(args: []Sexpr) EvalError!Sexpr {
+    // (string? <exp>)
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .string) sxTrue else sxFalse;
+}
+
+fn pStrLen(args: []Sexpr) EvalError!Sexpr {
+    // (string-length <string>)
+    const exp = args[0];
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+    const len = str.stringsTable.items[exp >> TagShift].len;
+    return makeInteger(len);
+}
+
+fn pStrRef(args: []Sexpr) EvalError!Sexpr {
+    // (string-ref <string> <position>)
+    const strArg = args[0];
+    const posArg = args[1];
+    var tag = @intToEnum(PtrTag, strArg & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+    const stg = str.get(strArg >> TagShift);
+    tag = @intToEnum(PtrTag, posArg & TagMask);
+    if (tag != .small_int and tag != .integer)
+        return EvalError.ExpectedInteger;
+    const pos = getAsInt(posArg);
+    if (pos < 0 or pos >= stg.len)
+        return EvalError.InvalidReference;
+    return makeChar(stg[@bitCast(usize, pos)]);
+}
+
+// -- Symbols ---------------------------------------------
+fn pSymbPred(args: []Sexpr) EvalError!Sexpr {
+    // (symbol? <exp>)
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .symbol) sxTrue else sxFalse;
+}
+
+
+// -- Vectors ---------------------------------------------
+fn pVecPred(args: []Sexpr) EvalError!Sexpr {
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    return if (tag == .vector) sxTrue else sxFalse;
 }
