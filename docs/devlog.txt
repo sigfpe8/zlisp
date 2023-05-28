@@ -1,0 +1,92 @@
+2023-05-27 - Implement basic support for character datatype
+             Added the datatype itself plus some basic primitives:
+                 (char? <exp>)
+                 (char->integer <char>)
+                 (integer->char <code>)
+                 (string-ref <string> <position>)
+             For now this supports basically ASCII only, although I'm planning
+             to support Unicode soon. I think current Scheme implementations
+             use UTF-16 (UCS-2) for characters and strings, but I'd like to
+             use UTF-8 since this is becoming more common these days for new
+             languages like Zig and Rust. Basically I could choose from:
+                1) Use UTF-16 as seems to be the case with some implementations;
+                2) Use UTF-8 as is my desire, although this brings some 
+                   complications because the characters occupy variable number
+                   of bytes (think string-ref, for example);
+                3) Support both mechanisms via separate builds. I don't know how
+                   to do this in Zig yet and besides it would require quite more
+                   work.
+             So, at this point I'm not sure which path to follow.
+
+2023-05-26 - Implement quasiquote (no vectors for now)
+             This was much harder to implement than I anticipated and I'm not
+             sure I got the recursion cases correctly. Two features for this
+             language facility make its implementation complicated: 1) nesting,
+             which creates cross recursion with quasiquote/quote/unquote/
+             unquote-splicing; 2) splicing prevents you from using 'cons' to
+             construct the result, you have to use 'append' or something like
+             it. This last point is the reason I haven't implemented quasiquote
+             for vectors yet, since it will require resizing the vector.
+             Anyway, I think this is a nice language feature, but my implementation
+             looks quite inefficient.
+
+2023-05-18 - Implement cond (=> clause still missing)
+             I think in order to implement => I will first need to overhaul
+             the way 'apply' works. I have currently three different versions
+             of 'apply' (procedure/primitive/special form) that need to work in
+             a more generic way.
+
+2023-05-17 - Handle special forms in a more structured way
+             Up until now, the special forms were being handled by 'if' tests
+             in 'eval'. This was fine when there were few of them, but as I
+             start to implement more and more special forms, this became 
+             inconvenient. So I implemented a mechanism similar to the one
+             used by the primitives. In fact, for a while I thought I should
+             handle both in the same way, in the same file, but in the end I
+             realized this would cause some problems and opted for a separate
+             handling (special.zig). The curious thing is that special forms
+             now are a (very special) datatype and can be assigned to variables.
+             I'm not sure if this is appropriate, but I thought this could be
+             useful later when I implement macros.
+
+2023-05-12 - Implement and/or special forms
+             Initially I implemented them as primitives... Ooops! Of course they
+             need to be special forms so as to implement short-circuit evaluation.
+             For regular procedures/primitives you first evaluate all the arguments,
+             which is not what we want for and/or.
+
+2023-05-09 - Implement letrec/zero?
+             My intention was to implement only 'letrec', but in order to test the
+             example from r5rs.pdf I had to also include 'zero?'.
+
+            (letrec ((even?
+                          (lambda (n)
+                                (if (zero? n)
+                                    #t
+                                    (odd? (- n 1)))))
+                     (odd?
+                          (lambda (n)
+                                (if (zero? n)
+                                    #f
+                                    (even? (- n 1)))
+                         )))
+                (even? 89)
+            )
+
+2023-05-08 - Implement list/list?/null?/reverse primitives
+
+2023-05-06 - Implement begin
+             For now, only a sequence of expressions, without any initial 
+             definitions. At some point I will need to rewrite <body> to
+             include definitions and that will be a good time to revisit
+             'begin'.
+
+2023-05-05 - Implement let*
+
+2023-05-04 - Add string type
+
+2023-05-03 - Add type predicates
+           - Support [...] and {...}
+           -  Multi-line input
+
+2023-04-25 - Initial commit
