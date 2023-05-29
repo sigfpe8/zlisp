@@ -18,6 +18,7 @@ const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
 const sxTrue = sexp.sxTrue;
 const sxUndef = sexp.sxUndef;
+const sxVoid = sexp.sxVoid;
 const Environ = eval.Environ;
 const SymbolId = sym.SymbolId;
 const EvalError = eval.EvalError;
@@ -48,7 +49,7 @@ const SFormTable = [_]FunDisp{
     .{ .name = "begin",            .func = sfBegin,      .min = 2, .max = unlimited, },
     .{ .name = "cond",             .func = sfCond,       .min = 1, .max = unlimited, },
     .{ .name = "define",           .func = sfDefine,     .min = 2, .max = 2, },
-    .{ .name = "if",               .func = sfIf,         .min = 3, .max = 3, },
+    .{ .name = "if",               .func = sfIf,         .min = 2, .max = 3, },
     .{ .name = "lambda",           .func = sfLambda,     .min = 2, .max = unlimited, },
     .{ .name = "let",              .func = sfLet,        .min = 2, .max = unlimited, },
     .{ .name = "letrec",           .func = sfLetrec,     .min = 2, .max = unlimited, },
@@ -187,17 +188,21 @@ fn sfDefine(env: *Environ, args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedSymbol;
     var exp = try env.eval(args[1]);
     try env.setVar(vname >> TagShift, exp);
-    return nil;
+    return sxVoid;
 }
 
 fn sfIf(env: *Environ, args: []Sexpr) EvalError!Sexpr {
     // (if <test-exp> <then-exp> <else-exp>)
+    // (if <test-exp> <then-exp>)
     var tstexp = try env.eval(args[0]);
     var exp: Sexpr = undefined;
     // Anything different from #f is true
     if (tstexp != sxFalse) {
         exp = args[1];
     } else {
+        if (args.len == 2)
+            // (if <test-exp> <then-exp>)
+            return sxVoid;
         exp = args[2];
     }
     return try env.eval(exp);

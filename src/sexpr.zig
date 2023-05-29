@@ -42,12 +42,13 @@ pub const sxTrue  = makeTaggedPtr(1, .boolean);
 pub const sxNullVec = makeTaggedPtr(0, .vector);
 pub const sxEnd = makeTaggedPtr(@enumToInt(SpecialTag.end), .special);
 pub const sxUndef = makeTaggedPtr(@enumToInt(SpecialTag.undef), .special);
+pub const sxVoid = makeTaggedPtr(@enumToInt(SpecialTag.tvoid), .special);
 pub const nil = makeTaggedPtr(0, .pair);            // == 0 a.k.a. '()
 
 
 pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, special };
 
-pub const SpecialTag = enum { form, undef, end };
+pub const SpecialTag = enum { form, tvoid, undef, end };
 pub const SpecialTagMask = 0x7;
 pub const SpecialTagShift = 3;
 

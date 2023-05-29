@@ -25,6 +25,7 @@ const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
 const sxTrue  = sexp.sxTrue;
 const sxEnd = sexp.sxEnd;
+const sxVoid = sexp.sxVoid;
 const TagShift = sexp.TagShift;
 const TagMask = sexp.TagMask;
 const SpecialTagShift = sexp.SpecialTagShift;
@@ -213,7 +214,9 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print("#<procedure>", .{});
         },
         .special => {
-            if (@intToEnum(SpecialTag, exp & SpecialTagMask) == .form) {
+            if (sexpr == sxVoid) {
+                // Don't print void
+            } else if (@intToEnum(SpecialTag, exp & SpecialTagMask) == .form) {
                 print("#<special-form:{s}>", .{spc.getName(exp >> SpecialTagShift)});
             } else {
                 print("#<special:unknown:{x}>", .{exp});
