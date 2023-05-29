@@ -112,6 +112,7 @@ pub fn cdr(sexpr: Sexpr) !Sexpr {
 }
 
 pub fn quoteExpr(name: SymbolId, expr: Sexpr) !Sexpr {
+    // (quote <expr>)
     var ptr1 = try Cell.alloc();
     cell.cellArray[ptr1].dot.car = expr;
     cell.cellArray[ptr1].dot.cdr = nil;

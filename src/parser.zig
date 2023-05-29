@@ -1,4 +1,5 @@
 const std = @import("std");
+const chr = @import("char.zig");
 const lex = @import("lexer.zig");
 const Lexer = lex.Lexer;
 const cell = @import("cell.zig");
@@ -189,7 +190,12 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print("#{s}", .{ if (exp == 0) "f" else "t" });
         },
         .char => {
-            print("#\\{c}", .{@truncate(u8, exp)});
+            const code = @truncate(u8, exp);
+            if (chr.nameFromCode(code)) |name| {
+                print("#\\{s}", .{name});
+            } else {
+                print("#\\{c}", .{code});
+            }
         },
         .pair => {
             const ptr = cell.cellArray[exp].dot;

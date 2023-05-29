@@ -1,4 +1,5 @@
 const std = @import("std");
+const chr = @import("char.zig");
 const lex = @import("lexer.zig");
 const Lexer = lex.Lexer;
 const parser = @import("parser.zig");
@@ -39,6 +40,7 @@ pub fn main() !void {
 
     try stdout.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
 
+    try chr.init();
     try Cell.init(8192);
     defer Cell.deinit();
     try vec.init(8192);

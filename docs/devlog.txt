@@ -1,3 +1,11 @@
+2023-05-29 - Implement character names
+             Added syntax for #\name, such as #\linefeed and #\tab. There's
+             a table with a bunch of names usually available on some Scheme
+             implementations. I'd like to add something new, such as #\euro,
+             but first I must sort out the Unicode representation issue (i.e.
+             UTF-8 vs UTF-16). A cleanup of error handling and error messages
+             is also in order.
+
 2023-05-27 - Implement basic support for character datatype
              Added the datatype itself plus some basic primitives:
                  (char? <exp>)

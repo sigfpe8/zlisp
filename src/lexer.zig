@@ -1,5 +1,6 @@
 const std = @import("std");
 const ascii = std.ascii;
+const chr = @import("char.zig");
 const print = std.debug.print;
 const sym = @import("symbol.zig");
 const str = @import("string.zig");
@@ -225,10 +226,26 @@ pub const Lexer = struct {
 
     fn parseChar(self: *Lexer) void {
         self.nextChar();    // Skip \ 
-        // For now expect only a single ASCII character
         self.token = .hash_char;
-        self.xvalue = self.cchar;
-        self.nextChar();    // Skip character
+        self.xvalue = self.cchar;   // Assume it's a single character
+        self.nextChar();            // Skip it
+
+        // Check if this is #\name
+        if (ascii.isAlphabetic(@truncate(u8, self.xvalue))) {
+            const begin = self.cpos - 2;
+            while (ascii.isAlphabetic(self.cchar))
+                self.nextChar();
+            const end = self.cpos - 1;
+            if (end - begin > 1) {  // If not a single letter
+                if (chr.codeFromName(self.line[begin..end])) |code| {
+                    self.xvalue = code;
+                } else {
+                    if (!self.silent)
+                        print("Invalid character name: #\\{s}\n", .{ self.line[begin..end] });
+                    self.token = .end;
+                }
+            }
+        }
     }
 
     fn parseNumber(self: *Lexer) void {
