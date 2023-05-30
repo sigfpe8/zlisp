@@ -32,6 +32,7 @@ const SpecialTagShift = sexp.SpecialTagShift;
 const SpecialTagMask = sexp.SpecialTagMask;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeInteger = sexp.makeInteger;
+const makeRational = sexp.makeRational;
 const makeFloat = sexp.makeFloat;
 const makeVector = sexp.makeVector;
 const ReadError = lex.ReadError;
@@ -57,6 +58,9 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
         .end => return sxEnd,
         .integer => {
             return try makeInteger(lexer.ivalue);
+        },
+        .rational => {
+            return try makeRational(lexer.ivalue, lexer.dvalue);
         },
         .float => {
             return makeFloat(lexer.fvalue);
@@ -183,9 +187,20 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             const val = cell.cellArray[exp].int;
             print("{d}", .{val});
         },
+        .rational => {
+            const num = prim.getAsInt(cell.cellArray[exp].rat.num);
+            const den = prim.getAsInt(cell.cellArray[exp].rat.den);
+            print("{d}/{d}", .{num,den});
+        },
         .float => {
             const val = cell.cellArray[exp].flt;
             print("{d}", .{val});
+        },
+        .polar => {
+            print("Not implemented yet\n", .{});
+        },
+        .complex => {
+            print("Not implemented yet\n", .{});
         },
         .boolean => {
             print("#{s}", .{ if (exp == 0) "f" else "t" });

@@ -42,36 +42,42 @@ const FunDisp = struct {
 };
 
 const PrimitTable = [_]FunDisp{
-    .{ .name = "boolean?",      .func = pBoolPred,  .min = 1, .max = 1, },
-    .{ .name = "car",           .func = pCar,       .min = 1, .max = 1, },
-    .{ .name = "cdr",           .func = pCdr,       .min = 1, .max = 1, },
-    .{ .name = "char?",         .func = pCharPred,  .min = 1, .max = 1, },
-    .{ .name = "char->integer", .func = pCharToInt, .min = 1, .max = 1, },
-    .{ .name = "cons",          .func = pCons,      .min = 2, .max = 2, },
-    .{ .name = "integer->char", .func = pIntToChar, .min = 1, .max = 1, },
-    .{ .name = "length",        .func = pLength,    .min = 1, .max = 1, },
-    .{ .name = "list",          .func = pList,      .min = 0, .max = unlimited, },
-    .{ .name = "list?",         .func = pListPred,  .min = 1, .max = 1, },
-    .{ .name = "null?",         .func = pNullPred,  .min = 1, .max = 1, },
-    .{ .name = "number?",       .func = pNumPred,   .min = 1, .max = 1, },
-    .{ .name = "pair?",         .func = pPairPred,  .min = 1, .max = 1, },
-    .{ .name = "procedure?",    .func = pProcPred,  .min = 1, .max = 1, },
-    .{ .name = "reverse",       .func = pReverse,   .min = 1, .max = 1, },
-    .{ .name = "string?",       .func = pStrPred,   .min = 1, .max = 1, },
-    .{ .name = "string-length", .func = pStrLen,    .min = 1, .max = 1, },
-    .{ .name = "string-ref",    .func = pStrRef,    .min = 2, .max = 2, },
-    .{ .name = "symbol?",       .func = pSymbPred,  .min = 1, .max = 1, },
-    .{ .name = "vector?",       .func = pVecPred,   .min = 1, .max = 1, },
-    .{ .name = "zero?",         .func = pZeroPred,  .min = 1, .max = 1, },
-    .{ .name = "+",             .func = pPlus,      .min = 0, .max = unlimited, },
-    .{ .name = "-",             .func = pMinus,     .min = 1, .max = unlimited, },
-    .{ .name = "*",             .func = pTimes,     .min = 0, .max = unlimited, },
-    .{ .name = "/",             .func = pDiv,       .min = 1, .max = unlimited, },
-    .{ .name = "<",             .func = pLess,      .min = 1, .max = unlimited, },
-    .{ .name = "<=",            .func = pLessEq,    .min = 1, .max = unlimited, },
-    .{ .name = "=",             .func = pEqual,     .min = 1, .max = unlimited, },
-    .{ .name = ">",             .func = pGrt,       .min = 1, .max = unlimited, },
-    .{ .name = ">=",            .func = pGrtEq,     .min = 1, .max = unlimited, },
+    .{ .name = "boolean?",      .func = pBoolPred,    .min = 1, .max = 1, },
+    .{ .name = "car",           .func = pCar,         .min = 1, .max = 1, },
+    .{ .name = "cdr",           .func = pCdr,         .min = 1, .max = 1, },
+    .{ .name = "char?",         .func = pCharPred,    .min = 1, .max = 1, },
+    .{ .name = "char->integer", .func = pCharToInt,   .min = 1, .max = 1, },
+    .{ .name = "complex?",      .func = pComplexPred, .min = 1, .max = 1, },
+    .{ .name = "cons",          .func = pCons,        .min = 2, .max = 2, },
+    .{ .name = "exact?",        .func = pExactPred,   .min = 1, .max = 1, },
+    .{ .name = "inexact?",      .func = pInexactPred, .min = 1, .max = 1, },
+    .{ .name = "integer?",      .func = pIntPred,     .min = 1, .max = 1, },
+    .{ .name = "integer->char", .func = pIntToChar,   .min = 1, .max = 1, },
+    .{ .name = "length",        .func = pLength,      .min = 1, .max = 1, },
+    .{ .name = "list",          .func = pList,        .min = 0, .max = unlimited, },
+    .{ .name = "list?",         .func = pListPred,    .min = 1, .max = 1, },
+    .{ .name = "null?",         .func = pNullPred,    .min = 1, .max = 1, },
+    .{ .name = "number?",       .func = pNumPred,     .min = 1, .max = 1, },
+    .{ .name = "pair?",         .func = pPairPred,    .min = 1, .max = 1, },
+    .{ .name = "procedure?",    .func = pProcPred,    .min = 1, .max = 1, },
+    .{ .name = "rational?",     .func = pRatPred,     .min = 1, .max = 1, },
+    .{ .name = "real?",         .func = pRealPred,    .min = 1, .max = 1, },
+    .{ .name = "reverse",       .func = pReverse,     .min = 1, .max = 1, },
+    .{ .name = "string?",       .func = pStrPred,     .min = 1, .max = 1, },
+    .{ .name = "string-length", .func = pStrLen,      .min = 1, .max = 1, },
+    .{ .name = "string-ref",    .func = pStrRef,      .min = 2, .max = 2, },
+    .{ .name = "symbol?",       .func = pSymbPred,    .min = 1, .max = 1, },
+    .{ .name = "vector?",       .func = pVecPred,     .min = 1, .max = 1, },
+    .{ .name = "zero?",         .func = pZeroPred,    .min = 1, .max = 1, },
+    .{ .name = "+",             .func = pPlus,        .min = 0, .max = unlimited, },
+    .{ .name = "-",             .func = pMinus,       .min = 1, .max = unlimited, },
+    .{ .name = "*",             .func = pTimes,       .min = 0, .max = unlimited, },
+    .{ .name = "/",             .func = pDiv,         .min = 1, .max = unlimited, },
+    .{ .name = "<",             .func = pLess,        .min = 1, .max = unlimited, },
+    .{ .name = "<=",            .func = pLessEq,      .min = 1, .max = unlimited, },
+    .{ .name = "=",             .func = pEqual,       .min = 1, .max = unlimited, },
+    .{ .name = ">",             .func = pGrt,         .min = 1, .max = unlimited, },
+    .{ .name = ">=",            .func = pGrtEq,       .min = 1, .max = unlimited, },
 };
 
 pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
@@ -245,9 +251,73 @@ fn pReverse(args: []Sexpr) EvalError!Sexpr {
 // -- Numbers ---------------------------------------------
 fn pNumPred(args: []Sexpr) EvalError!Sexpr {
     // (number? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    return if (tag == .small_int or tag == .integer or tag == .float) sxTrue else sxFalse;
+    const tag  = args[0] & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.complex);
+    return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
 }
+
+fn pIntPred(args: []Sexpr) EvalError!Sexpr {
+    // (integer? <exp>)
+    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    if (tag == .small_int or tag == .integer)
+        return sxTrue;
+    // Check if real number is actually an integer
+    if (tag == .float) {
+        const num = cell.cellArray[args[0] >> TagShift].flt;
+        const inum: i64 = @floatToInt(i64, num);
+        if (@intToFloat(f64, inum) == num)
+            return sxTrue;
+    }
+    return sxFalse;
+ }
+
+
+fn pRatPred(args: []Sexpr) EvalError!Sexpr {
+   // (rational? <exp>)
+    const tag  = args[0] & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.float);
+    return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
+ }
+
+fn pRealPred(args: []Sexpr) EvalError!Sexpr {
+   // (real? <exp>)
+    const tag  = args[0] & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.float);
+    return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
+ }
+
+fn pComplexPred(args: []Sexpr) EvalError!Sexpr {
+   // (real? <exp>)
+    const tag  = args[0] & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.complex);
+    return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
+ }
+
+fn pExactPred(args: []Sexpr) EvalError!Sexpr {
+    // (exact? <exp>)
+    const tag   = args[0] & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.complex);
+    if (tag < tagLo or tag > tagHi)
+        return EvalError.ExpectedNumber;
+    
+    return if (@intToEnum(PtrTag, tag) == .float) sxFalse else sxTrue;
+ }
+
+fn pInexactPred(args: []Sexpr) EvalError!Sexpr {
+    // (inexact? <exp>) 
+    const tag   = args[0] & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.complex);
+    if (tag < tagLo or tag > tagHi)
+        return EvalError.ExpectedNumber;
+    
+    return if (@intToEnum(PtrTag, tag) == .float) sxTrue else sxFalse;
+ }
 
 fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
     // (zero? <exp>)
@@ -264,33 +334,36 @@ fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
 }
 
 // Determine the highest number type in a list of arguments
-// float > integer
+//   integer < rational < real < complex
 fn maxNumType(args: []Sexpr) EvalError!PtrTag {
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.complex);
+    var maxtype: u32 = @enumToInt(PtrTag.integer);
     for (args) |arg| {
-        switch (@intToEnum(PtrTag, arg & TagMask)) {
-            .small_int, .integer => {},
-            .float => { return .float; },
-            else => { return EvalError.ExpectedNumber; },
-        }
+        const tag = arg & TagMask;
+        if (tag < tagLo or tag > tagHi)
+            return EvalError.ExpectedNumber;
+        if (tag > maxtype)
+            maxtype = tag;
     }
 
-    return .integer;
+    return @intToEnum(PtrTag, maxtype);
 }
 
-fn getAsInt(num: Sexpr) i64 {
+pub fn getAsInt(num: Sexpr) i64 {
     switch (@intToEnum(PtrTag, num & TagMask)) {
         .small_int => { return @as(i64, @bitCast(TaggedInt, num)) >> TagShift; },
         .integer =>   { return cell.cellArray[num >> TagShift].int; },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0;},
     }
 }
 
-fn getAsFloat(num: Sexpr) f64 {
+pub fn getAsFloat(num: Sexpr) f64 {
     switch (@intToEnum(PtrTag, num & TagMask)) {
         .small_int => { return @intToFloat(f64, @as(i64, @bitCast(TaggedInt, num)) >> TagShift); },
         .integer =>   { return @intToFloat(f64, cell.cellArray[num >> TagShift].int); },
         .float =>     { return cell.cellArray[num >> TagShift].flt; },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0.0;},
     }
 }
 
@@ -312,7 +385,7 @@ fn pPlus(args: []Sexpr) EvalError!Sexpr {
                 }
                 return makeFloat(result);
             },
-            else => unreachable,
+            else => { print("Not implemented yet\n", .{}); return 0; },
         }
     }
     return makeInteger(0);
@@ -337,7 +410,7 @@ fn pMinus(args: []Sexpr) EvalError!Sexpr {
             if (args.len == 1) result = -result;
             return makeFloat(result);
         },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0; },
     }
     return 0;
 }
@@ -360,7 +433,7 @@ fn pTimes(args: []Sexpr) EvalError!Sexpr {
                 }
                 return makeFloat(result);
             },
-            else => unreachable,
+            else => { print("Not implemented yet\n", .{}); return 0; },
         }
     }
     return makeInteger(1);
@@ -412,7 +485,7 @@ fn pLess(args: []Sexpr) EvalError!Sexpr {
             }
             return sxTrue;
         },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0; },
     }
     unreachable;
 }
@@ -441,7 +514,7 @@ fn pLessEq(args: []Sexpr) EvalError!Sexpr {
             }
             return sxTrue;
         },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0; },
     }
     unreachable;
 }
@@ -470,7 +543,7 @@ fn pEqual(args: []Sexpr) EvalError!Sexpr {
             }
             return sxTrue;
         },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0; },
     }
     unreachable;
 }
@@ -499,7 +572,7 @@ fn pGrt(args: []Sexpr) EvalError!Sexpr {
             }
             return sxTrue;
         },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0; },
     }
     unreachable;
 }
@@ -528,7 +601,7 @@ fn pGrtEq(args: []Sexpr) EvalError!Sexpr {
             }
             return sxTrue;
         },
-        else => unreachable,
+        else => { print("Not implemented yet\n", .{}); return 0; },
     }
     unreachable;
 }

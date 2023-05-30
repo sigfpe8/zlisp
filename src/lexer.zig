@@ -22,6 +22,7 @@ pub const Token = enum { lparens,       // ( [ {
                          hash_char,     // #\
                          symbol,        // name
                          integer,       // 1234567890
+                         rational,      // 2/3
                          float,         // 1.23456789
                          string,        // "string"
                          end, unknown };
@@ -84,6 +85,7 @@ pub const Lexer = struct {
     schar: u8 = 0,          // Single byte token
     rparens: u8 = 0,        // Matching right parenthesis
     ivalue: i64 = 0,        // Value of integer token
+    dvalue: i64 = 1,        // Value of denominator (for rational)
     fvalue: f64 = 0.0,      // Value of float token
     xvalue: u32 = 0,        // Index if for a symbol token
     token: Token = .end,    // Current token type
@@ -255,6 +257,8 @@ pub const Lexer = struct {
             self.nextChar();
         if (self.cchar == '.')
             return self.parseFloat(begin);
+        if (self.cchar == '/')
+            return self.parseRational(begin);
         const end = self.cpos - 1;
         const value = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
             if (!self.silent)
@@ -265,6 +269,43 @@ pub const Lexer = struct {
         self.ivalue = value;
         self.token = .integer;
         return;
+    }
+
+    fn parseRational(self: *Lexer, numBegin: usize) void {
+        var begin = numBegin;
+        var end = self.cpos - 1;
+        const num = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
+            if (!self.silent)
+                print("Error {} parsing integer numerator: {s}\n", .{ err, self.line[begin..end] });
+            self.token = .end;
+            return;
+        };
+
+        self.nextChar();        // Skip /
+        begin = self.cpos - 1;
+        // if (!ascii.isDigit(self.cchar)) --> TODO: treat as symbol
+        if (!ascii.isDigit(self.cchar)) {
+            end = self.cpos - 1;
+            if (!self.silent)
+                print("Invalid denominator: {s}\n", .{ self.line[begin..end] });
+            self.token = .end;
+            return;
+        }
+
+        while (ascii.isDigit(self.cchar))
+            self.nextChar();
+
+        end = self.cpos - 1;
+        const den = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
+            if (!self.silent)
+                print("Error {} parsing integer denominator: {s}\n", .{ err, self.line[begin..end] });
+            self.token = .end;
+            return;
+        };
+
+        self.ivalue = num;
+        self.dvalue = den;
+        self.token  = .rational;
     }
 
     // Parse floating-point number after decimal point

@@ -63,6 +63,7 @@ pub const EvalError = error{
     UnquoteOutsideQuasiquote,
     InvalidUnicodeValue,
     InvalidReference,
+    InvalidDenominator,
 };
 
 // Scheme keywords (special forms)

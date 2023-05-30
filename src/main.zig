@@ -40,7 +40,6 @@ pub fn main() !void {
 
     try stdout.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
 
-    try chr.init();
     try Cell.init(8192);
     defer Cell.deinit();
     try vec.init(8192);
@@ -51,6 +50,7 @@ pub fn main() !void {
     defer str.deinit();
 
     try eval.internKeywords();
+    try chr.init();
     try spc.init();
     try prim.init();
 

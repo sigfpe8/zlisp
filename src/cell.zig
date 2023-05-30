@@ -6,13 +6,29 @@ const EvalError = eval.EvalError;
 // A LISP cons cell is made of two parts, a `car` and a `cdr`, each of which
 // should be wide enough to hold a pointer to another cell. In this implementation
 // the cells are allocated from an array and addresed by their indices. So a
-// "cell pointer" is just an integer, in this case a u32, a.k.a a CellId. These 32
-// bits are divided into a 28-bit pointer and a 4-bit tag. See sexpr.zig for details.
-const CellId = sexp.Sexpr;
+// "cell pointer" is just an integer, in this case a u32. These 32 bits are
+// divided into a 28-bit pointer and a 4-bit tag. See sexpr.zig for details.
+const Sexpr = sexp.Sexpr;
+const CellId = u32;
 
 pub const Pair = packed struct {
-    car: CellId,
-    cdr: CellId,
+    car: Sexpr,
+    cdr: Sexpr,
+};
+
+pub const Rational = packed struct {
+    num: Sexpr,     // Numerator
+    den: Sexpr,     // Denominator (> 0)
+};
+
+pub const Complex = packed struct {
+    re: Sexpr,      // Real part
+    im: Sexpr,      // Imaginary part
+};
+
+pub const Polar = packed struct {
+    mag: Sexpr,     // Magnitude
+    ang: Sexpr,     // Angle
 };
 
 const allocator = std.heap.page_allocator;
@@ -27,6 +43,9 @@ pub const Cell = packed union {
     sym: u32,
     str: u32,
     dot: Pair,
+    rat: Rational,
+    cmp: Complex,
+    pol: Polar,
 
     /// Allocate and initialize memory for `n` cells
     pub fn init(n: u32) !void {

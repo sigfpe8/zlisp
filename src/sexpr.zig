@@ -7,6 +7,7 @@ const eval = @import("eval.zig");
 const Cell = cell.Cell;
 const Environ = eval.Environ;
 const VectorId = vec.VectorId;
+const EvalError = eval.EvalError;
 
 // A symbolic expression (S-expression or Sexpr) is a tagged pointer.
 //
@@ -46,7 +47,21 @@ pub const sxVoid = makeTaggedPtr(@enumToInt(SpecialTag.tvoid), .special);
 pub const nil = makeTaggedPtr(0, .pair);            // == 0 a.k.a. '()
 
 
-pub const PtrTag = enum { pair, small_int, integer, char, boolean, float, symbol, string, vector, primitive, procedure, special };
+pub const PtrTag = enum { pair,         // (a . b)
+                          small_int,    // 28-bit signed integers (i28)
+                          integer,      // 64-bit signed integers (i64)
+                          rational,     // (small_int or integer) / (small_int or integer)
+                          float,        // f64
+                          polar,        // Complex number in polar form (magnitude / angle)
+                          complex,      // Complex number in rectangular form (real + imaginary)
+                          char,         // Unicode code point
+                          boolean,      // #f or #t
+                          symbol,       // identifier
+                          string,       // "string"
+                          vector,       // #(1 2 3...)
+                          primitive,    // car, cdr, list, etc
+                          procedure,    // lambda
+                          special };    // special forms and helper types
 
 pub const SpecialTag = enum { form, tvoid, undef, end };
 pub const SpecialTagMask = 0x7;
@@ -82,6 +97,22 @@ pub fn makeInteger(val: i64) !Sexpr {
         cell.cellArray[index].int = val;
         return makeTaggedPtr(index, .integer);
     }
+}
+
+pub fn makeRational(num: i64, den: i64) !Sexpr {
+    if (den <= 0)
+        return EvalError.InvalidDenominator;
+    
+    const tnum = std.math.absInt(num) catch unreachable;
+    const tmod = std.math.mod(i64, tnum, den) catch unreachable;
+    if (tmod == 0) {
+        // This is really an integer in disguise (e.g. 8/4)
+        return makeInteger(@divExact(num, den));
+    }
+    const ptr = try Cell.alloc();
+    cell.cellArray[ptr].rat.num = try makeInteger(num);
+    cell.cellArray[ptr].rat.den = try makeInteger(den);
+    return makeTaggedPtr(ptr, .rational);
 }
 
 pub fn makeFloat(val: f64) !Sexpr {
