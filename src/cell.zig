@@ -1,7 +1,7 @@
 const std = @import("std");
 const sexp = @import("sexpr.zig");
-const eval = @import("eval.zig");
-const EvalError = eval.EvalError;
+
+const EvalError = @import("error.zig").EvalError;
 
 // A LISP cons cell is made of two parts, a `car` and a `cdr`, each of which
 // should be wide enough to hold a pointer to another cell. In this implementation
@@ -59,6 +59,12 @@ pub const Cell = packed union {
         //       1024            2         8 KB
         //       8192           16        64 KB
         //     131072          256         1 MB
+        //   16777216        32768       128 MB
+        //
+        // The maximum number of cells is determined by the
+        // largest u28 index, which is 268435455:
+        //
+        //   268435456      524288      2048 MB (if the OS allows it)
 
         // Allocate n Cells
         cellArray = try allocator.alloc(Cell, n);

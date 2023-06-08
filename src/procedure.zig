@@ -5,7 +5,7 @@ const vec  = @import("vector.zig");
 const Sexpr = sexp.Sexpr;
 const VectorId = vec.VectorId;
 const Environ = eval.Environ;
-const EvalError = eval.EvalError;
+const EvalError = @import("error.zig").EvalError;
 
 const allocator = std.heap.page_allocator;
 

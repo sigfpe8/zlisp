@@ -16,8 +16,9 @@ const spc = @import("special.zig");
 const Proc = proc.Proc;
 const PtrTag = sexp.PtrTag;
 const TagMask = sexp.TagMask;
-const ReadError = lex.ReadError;
 const sxEnd = sexp.sxEnd;
+
+const ReadError = @import("error.zig").ReadError;
 
 const ver_major = 0;
 const ver_minor = 1;
@@ -91,13 +92,24 @@ pub fn main() !void {
 fn repl(lexer: *Lexer) !void {
     try lexer.nextTokenChar();
     while (true) {
-        try lexer.nextToken();
+        lexer.nextToken() catch |err| {
+            lexer.logError(err);
+            return;
+        };
         lexer.inexpr = true;
-        var sexpr = try parser.parseSexpr(lexer);
+        var sexpr = parser.parseSexpr(lexer) catch |err| {
+            lexer.logError(err);
+            return;
+        };
         lexer.inexpr = false;
         if (lexer.eof or sexpr == sxEnd)
             break;
-        sexpr = try eval.globalEnv.eval(sexpr);
+
+        sexpr = eval.globalEnv.eval(sexpr) catch |err| {
+            eval.logError(err);
+            return;
+        };
+
         if (!lexer.silent) {
             try parser.printSexpr(sexpr, true);
             try stdout.print("\n", .{});

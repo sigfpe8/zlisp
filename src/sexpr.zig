@@ -7,7 +7,7 @@ const eval = @import("eval.zig");
 const Cell = cell.Cell;
 const Environ = eval.Environ;
 const VectorId = vec.VectorId;
-const EvalError = eval.EvalError;
+const EvalError = @import("error.zig").EvalError;
 
 // A symbolic expression (S-expression or Sexpr) is a tagged pointer.
 //

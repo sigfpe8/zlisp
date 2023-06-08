@@ -1,3 +1,17 @@
+2023-06-08 - Restructure error handling/logging
+             There are a few things I dislike about Zig's error mechanism.
+             First there's the problem that it still can't infer the error
+             type for recursive functions. Aggravating this problem is the
+             fact that if your recursive function calls a few std library
+             functions, soon your error union will incorporate a dozen or
+             more system errors. Finally, I still don't know how to associate
+             a message ([]const u8) to the errors. I suspect there may be
+             a way to do this using comptime. In any case, the current commit
+             improves a little bit on error handling in general, but I still
+             wish to make it better. Errors are now caught in repl() (main.zig).
+             Syntax or parsing errors are reported/logged by lexer.logError()
+             while eval errors are reported by eval.logError().
+
 2023-05-29 - Implement character names
              Added syntax for #\name, such as #\linefeed and #\tab. There's
              a table with a bunch of names usually available on some Scheme

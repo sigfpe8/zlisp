@@ -30,41 +30,7 @@ const makeProc = sexp.makeProc;
 const makeVector = sexp.makeVector;
 const MAXVECSIZE = vec.MAXVECSIZE;
 
-pub const EvalError = error{
-    InvalidSyntax,
-    UndefinedVariable,
-    LetrecUndefVariable,
-    ExpectedOneArgument,
-    ExpectedTwoArguments,
-    ExpectedThreeArguments,
-    ExpectedPair,
-    ExpectedSymbol,
-    ExpectedVariable,
-    ExpectedList,
-    ExpectedInteger,
-    ExpectedNumber,
-    ExpectedCharacter,
-    ExpectedString,
-    ExpectedProcedure,
-    DefineFailed,
-    PrintError,
-    WrongNumberOfArguments,
-    TooManyFormals,
-    TooManyArguments,
-    TooFewArguments,
-    OutOfMemory,
-    DivisionByZero,
-    ElseClauseMustBeLast,
-    QuasiquoteExpectsOnly1Argument,
-    UnquoteExpectsOnly1Argument,
-    UnquoteSplExpectsOnly1Argument,
-    UnquoteSplicingMustBeList,
-    InvalidQuasiquoteElement,
-    UnquoteOutsideQuasiquote,
-    InvalidUnicodeValue,
-    InvalidReference,
-    InvalidDenominator,
-};
+const EvalError = @import("error.zig").EvalError;
 
 // Scheme keywords (special forms)
 pub var kwElse:        SymbolId = undefined;
@@ -165,6 +131,12 @@ fn apply(newenv: *Environ, pid: ProcId, args: []Sexpr) !Sexpr {
     return try env.evalBody(body);
 }
 
+pub fn logError(err: anyerror) void {
+    var buffer: [64]u8 = undefined;
+    const name = std.fmt.bufPrint(&buffer, "{!}", .{err}) catch unreachable;
+    print("\nEvaluation error: {s}\n", .{name[6..]});   // Skip "error."
+}
+
 pub const Environ = struct {
     const Self = @This();
     // Outer environment, null if global
@@ -185,7 +157,7 @@ pub const Environ = struct {
 
                 // Must be a proper list
                 if (cdrtag != .pair)
-                    return EvalError.InvalidSyntax;
+                    return EvalError.ExpectedList;
 
                 return try self.evalList(dot.car, dot.cdr);
             },

@@ -2,7 +2,7 @@ const std = @import("std");
 const sexp = @import("sexpr.zig");
 const eval = @import("eval.zig");
 const Sexpr = sexp.Sexpr;
-const EvalError = eval.EvalError;
+const EvalError = @import("error.zig").EvalError;
 const print = std.debug.print;
 
 const allocator = std.heap.page_allocator;

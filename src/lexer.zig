@@ -1,6 +1,7 @@
 const std = @import("std");
 const ascii = std.ascii;
 const chr = @import("char.zig");
+const erz = @import("error.zig");
 const print = std.debug.print;
 const sym = @import("symbol.zig");
 const str = @import("string.zig");
@@ -29,20 +30,8 @@ pub const Token = enum { lparens,       // ( [ {
 
 //const extendedChars = "+-.*/<=>!?:$%_&~^";
 
-pub const ReadError = error {
-    StreamTooLong,
-    AccessDenied,
-    BrokenPipe,
-    ConnectionResetByPeer,
-    ConnectionTimedOut,
-    InputOutput,
-    IsDir,
-    NotOpenForReading,
-    OperationAborted,
-    SystemResources,
-    Unexpected,
-    WouldBlock,
-};
+const ReadError = erz.ReadError;
+const SchemeError = erz.SchemeError;
 
 fn isSymbolStart(ch: u8) bool {
     switch (ch) {
@@ -81,6 +70,7 @@ pub const Lexer = struct {
     silent: bool = false,   // If true, don't print anything
     lnum: usize = 1,        // Current line number
     cpos: usize = 0,        // Current character index
+    begin: usize = 0,       // Index of token beginning
     cchar: u8 = 0,          // Current character
     schar: u8 = 0,          // Single byte token
     rparens: u8 = 0,        // Matching right parenthesis
@@ -149,18 +139,20 @@ pub const Lexer = struct {
             break;  // Start of a new token
         }
 
+        self.begin = self.cpos - 1;    // Remember where the token begins
+
         if (ascii.isDigit(self.cchar) or
             ((self.cchar == '-' or self.cchar == '+') and ascii.isDigit(self.peekNextChar())))
-            return self.parseNumber();
+            return try self.parseNumber();
 
         if (isSymbolStart(self.cchar))
-            return self.parseSymbol();
+            return try self.parseSymbol();
 
         if (self.cchar == '#')
-            return self.parseHash();
+            return try self.parseHash();
 
         if (self.cchar == '"')
-            return self.parseString();
+            return try self.parseString();
 
         switch (self.cchar) {
             '(' => { self.token = .lparens; self.rparens = ')'; },
@@ -183,27 +175,6 @@ pub const Lexer = struct {
 
         self.schar = self.cchar; // Save token
         self.nextChar();
-        return;
-    }
-
-    pub fn printToken(self: *Lexer) void {
-        switch (self.token) {
-            Token.lparens => {
-                print("(\n", .{});
-            },
-            Token.rparens => {
-                print(")\n", .{});
-            },
-            Token.integer => {
-                print("INTEGER {d}\n", .{self.ivalue});
-            },
-            Token.symbol => {
-                print("SYMBOL {s}\n", .{self.svalue});
-            },
-            else => {
-                print("UNKNOWN {c}\n", .{self.schar});
-            },
-        }
     }
 
     fn peekNextChar(self: *Lexer) u8 {
@@ -212,7 +183,7 @@ pub const Lexer = struct {
         return self.line[self.cpos];
     }
 
-    fn parseHash(self: *Lexer) void {
+    fn parseHash(self: *Lexer) !void {
         self.nextChar();    // Skip #
         switch (self.cchar) {
             'f' => self.token = .hash_f,
@@ -220,13 +191,13 @@ pub const Lexer = struct {
             '(' => { self.token = .hash_vec; self.rparens = ')'; },
             '[' => { self.token = .hash_vec; self.rparens = ']'; },
             '{' => { self.token = .hash_vec; self.rparens = '}'; },
-            '\\' => { return self.parseChar(); },
+            '\\' => { return try self.parseChar(); },
             else => self.token = .unknown,
         }
         self.nextChar();
     }
 
-    fn parseChar(self: *Lexer) void {
+    fn parseChar(self: *Lexer) !void {
         self.nextChar();    // Skip \ 
         self.token = .hash_char;
         self.xvalue = self.cchar;   // Assume it's a single character
@@ -242,66 +213,44 @@ pub const Lexer = struct {
                 if (chr.codeFromName(self.line[begin..end])) |code| {
                     self.xvalue = code;
                 } else {
-                    if (!self.silent)
-                        print("Invalid character name: #\\{s}\n", .{ self.line[begin..end] });
-                    self.token = .end;
+                    return SchemeError.InvalidCharName;
                 }
             }
         }
     }
 
-    fn parseNumber(self: *Lexer) void {
+    fn parseNumber(self: *Lexer) !void {
         const begin = self.cpos - 1;
         self.nextChar();
         while (ascii.isDigit(self.cchar))
             self.nextChar();
         if (self.cchar == '.')
-            return self.parseFloat(begin);
+            return try self.parseFloat(begin);
         if (self.cchar == '/')
-            return self.parseRational(begin);
+            return try self.parseRational(begin);
         const end = self.cpos - 1;
-        const value = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
-            if (!self.silent)
-                print("Error {} parsing integer: {s}\n", .{ err, self.line[begin..end] });
-            self.token = .end;
-            return;
-        };
+        const value = try std.fmt.parseInt(i64, self.line[begin..end], 0);
         self.ivalue = value;
         self.token = .integer;
-        return;
     }
 
-    fn parseRational(self: *Lexer, numBegin: usize) void {
+    fn parseRational(self: *Lexer, numBegin: usize) !void {
         var begin = numBegin;
         var end = self.cpos - 1;
-        const num = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
-            if (!self.silent)
-                print("Error {} parsing integer numerator: {s}\n", .{ err, self.line[begin..end] });
-            self.token = .end;
-            return;
-        };
+
+        const num = try std.fmt.parseInt(i64, self.line[begin..end], 0);
 
         self.nextChar();        // Skip /
         begin = self.cpos - 1;
         // if (!ascii.isDigit(self.cchar)) --> TODO: treat as symbol
-        if (!ascii.isDigit(self.cchar)) {
-            end = self.cpos - 1;
-            if (!self.silent)
-                print("Invalid denominator: {s}\n", .{ self.line[begin..end] });
-            self.token = .end;
-            return;
-        }
+        if (!ascii.isDigit(self.cchar))
+            return SchemeError.InvalidDenominator;
 
         while (ascii.isDigit(self.cchar))
             self.nextChar();
 
         end = self.cpos - 1;
-        const den = std.fmt.parseInt(i64, self.line[begin..end], 0) catch |err| {
-            if (!self.silent)
-                print("Error {} parsing integer denominator: {s}\n", .{ err, self.line[begin..end] });
-            self.token = .end;
-            return;
-        };
+        const den = try std.fmt.parseInt(i64, self.line[begin..end], 0);
 
         self.ivalue = num;
         self.dvalue = den;
@@ -309,7 +258,7 @@ pub const Lexer = struct {
     }
 
     // Parse floating-point number after decimal point
-    fn parseFloat(self: *Lexer, begin: usize) void {
+    fn parseFloat(self: *Lexer, begin: usize) !void {
         self.nextChar(); // Skip .
         while (ascii.isDigit(self.cchar)) // Decimal part
             self.nextChar();
@@ -321,34 +270,21 @@ pub const Lexer = struct {
                 self.nextChar();
         }
         const end = self.cpos - 1;
-        const value = std.fmt.parseFloat(f64, self.line[begin..end]) catch |err| {
-            if (!self.silent)
-                print("Error {} parsing floating-point number: {s}\n", .{ err, self.line[begin..end] });
-            self.token = .end;
-            return;
-        };
+        const value = try std.fmt.parseFloat(f64, self.line[begin..end]);
         self.fvalue = value;
         self.token = .float;
     }
 
-    fn parseSymbol(self: *Lexer) void {
+    fn parseSymbol(self: *Lexer) !void {
         const begin = self.cpos - 1;
         self.nextChar();
         while (isSymbolChar(self.cchar))
             self.nextChar();
         const end = self.cpos - 1;
-        if (end - begin > 255) {
-            if (!self.silent)
-                print("Symbol length is limited to 255 characters: {s}\n", .{self.line[begin..end]});
-            self.token = .end;
-            return;
-        }
+        if (end - begin > 255)
+            return SchemeError.SymbolIsTooLong;
         self.svalue = self.line[begin..end];
-        self.xvalue = sym.intern(self.line[begin..end]) catch |err| {
-            print("Error {} parsing symbol: {s}\n", .{ err, self.line[begin..end] });
-            self.token = .end;
-            return;
-        };
+        self.xvalue = try sym.intern(self.line[begin..end]);
         self.token = .symbol;
     }
 
@@ -380,11 +316,27 @@ pub const Lexer = struct {
             self.nextChar();
         }
         self.nextChar();    // Skip ending "
-        self.xvalue = str.add(lit.items) catch |err| {
-            print("Error {} parsing string: \"{s}\"\n", .{ err, lit.items });
-            self.token = .end;
-            return;
-        };
+        self.xvalue = try str.add(lit.items);
         self.token = .string;
+    }
+
+    pub fn logError(self: *Lexer, err: anyerror) void {
+        if (!self.silent) {
+            print("\nSyntax error: {!}\n{s}\n", .{ err, self.line[0..] });
+            var i: usize = 0;
+            while (i < self.begin) : (i += 1) {
+                if (self.line[i] != '\t') {
+                    print(" ", .{});
+                } else {
+                    print("\t", .{});
+                }
+            }
+            print("^", .{});
+            i += 2;
+            while (i < self.cpos) : (i += 1) {
+                print("~", .{});
+            }
+            print("\n", .{});
+        }
     }
 };

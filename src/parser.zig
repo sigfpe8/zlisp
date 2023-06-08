@@ -4,6 +4,7 @@ const lex = @import("lexer.zig");
 const Lexer = lex.Lexer;
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
+const erz = @import("error.zig");
 const sexp = @import("sexpr.zig");
 const str = @import("string.zig");
 const sym = @import("symbol.zig");
@@ -38,14 +39,8 @@ const makeVector = sexp.makeVector;
 const ReadError = lex.ReadError;
 const quoteExpr = eval.quoteExpr;
 
-const ParsingError = error{
-    ExpectedRightParenthesis,
-    ExpectedRightBracket,
-    ExpectedRightBrace,
-    VectorIsTooLong,
-};
-
-const SexprError = ParsingError || eval.EvalError || lex.ReadError;
+const ParsingError = erz.ParsingError;
+const SchemeError = erz.SchemeError;
 
 const MAXVECSIZE = vec.MAXVECSIZE;
 
@@ -130,7 +125,7 @@ pub fn parseSexpr(lexer: *Lexer) !Sexpr {
 
 // Entry: token -> 1st token after (
 // Exit:  token -> )
-fn parseList(lexer: *Lexer) SexprError!Sexpr {
+fn parseList(lexer: *Lexer) anyerror!Sexpr {
     if (lexer.token == .rparens or lexer.token == .end)
         return nil;
     const car = try parseSexpr(lexer);
@@ -151,7 +146,7 @@ fn parseList(lexer: *Lexer) SexprError!Sexpr {
 
 // Entry: token -> 1st token after #(
 // Exit:  token -> )
-fn parseVector(lexer: *Lexer) SexprError!Sexpr {
+fn parseVector(lexer: *Lexer) anyerror!Sexpr {
     var tvec: [MAXVECSIZE]Sexpr = undefined;
     var siz: u32 = 0;
 

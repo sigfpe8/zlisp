@@ -21,7 +21,6 @@ const sxUndef = sexp.sxUndef;
 const sxVoid = sexp.sxVoid;
 const Environ = eval.Environ;
 const SymbolId = sym.SymbolId;
-const EvalError = eval.EvalError;
 const UntaggedPtr = sexp.UntaggedPtr;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeSpecialPtr = sexp.makeSpecialPtr;
@@ -33,13 +32,14 @@ const cdr = eval.cdr;
 const cons = eval.cons;
 const quoteExpr = eval.quoteExpr;
 const unlimited = std.math.maxInt(u32);
+const EvalError = @import("error.zig").EvalError;
 
 // Function dispatch
 const FunDisp = struct {
     name: []const u8, // Special form name (e.g. "if")
     func: *const fn (*Environ, []Sexpr) EvalError!Sexpr, // Function that implements it (e.g. sfIf)
-    min: u32,         // Minimum # of arguments (1)
-    max: u32,         // Maximum # of arguments (1)
+    min: u32,         // Minimum # of arguments (2)
+    max: u32,         // Maximum # of arguments (3)
 };
 
 pub const SFormId = u32;
