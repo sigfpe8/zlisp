@@ -1,6 +1,5 @@
 ## Language features
 
-* character datatype
 * port datatype
 * Quasiquotation for vectors
 * Ports Input/Output
