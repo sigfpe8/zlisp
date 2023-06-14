@@ -367,6 +367,31 @@ pub fn getAsFloat(num: Sexpr) f64 {
     }
 }
 
+/// Return the sign of a real number (-1, 0, 1).
+/// For all other types, return 0.
+pub fn getSign(num: Sexpr) i64 {
+    const exp = num >> TagShift;
+    var int: i64 = undefined;
+    switch (@intToEnum(PtrTag, num & TagMask)) {
+        .small_int, .integer => {
+            int = getAsInt(num);
+        },
+        .float => {
+            const flt = cell.cellArray[exp].flt;
+            if (flt < 0) return -1;
+            if (flt > 0) return  1;
+            return 0;
+        },
+        .rational => {
+            int = getAsInt(cell.cellArray[exp].rat.num);
+        },
+        else => return 0,
+    }
+    if (int < 0) return -1;
+    if (int > 0) return  1;
+    return 0;
+}
+
 fn pPlus(args: []Sexpr) EvalError!Sexpr {
     // (+ <num>...)
     if (args.len > 0) {

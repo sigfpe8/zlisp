@@ -151,3 +151,17 @@ pub fn makeChar(code: i64) Sexpr {
     const val = @truncate(UntaggedInt, code);
     return makeTaggedPtr(@bitCast(UntaggedPtr, val), .char);  
 }
+
+pub fn makePolar(mag: Sexpr, ang: Sexpr) !Sexpr {
+    const ptr = try Cell.alloc();
+    cell.cellArray[ptr].pol.mag = mag;
+    cell.cellArray[ptr].pol.ang = ang;
+    return makeTaggedPtr(ptr, .polar);
+}
+
+pub fn makeComplex(re: Sexpr, im: Sexpr) !Sexpr {
+    const ptr = try Cell.alloc();
+    cell.cellArray[ptr].cmp.re = re;
+    cell.cellArray[ptr].cmp.im = im;
+    return makeTaggedPtr(ptr, .complex);
+}

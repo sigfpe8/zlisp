@@ -9,7 +9,7 @@ const sexp = @import("sexpr.zig");
 const str = @import("string.zig");
 const sym = @import("symbol.zig");
 const eval = @import("eval.zig");
-const prim = @import("primitive.zig");
+const pri = @import("primitive.zig");
 const vec = @import("vector.zig");
 const spc = @import("special.zig");
 const print = std.debug.print;
@@ -31,6 +31,7 @@ const TagShift = sexp.TagShift;
 const TagMask = sexp.TagMask;
 const SpecialTagShift = sexp.SpecialTagShift;
 const SpecialTagMask = sexp.SpecialTagMask;
+const makeNumber = lex.makeNumber;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeInteger = sexp.makeInteger;
 const makeRational = sexp.makeRational;
@@ -51,14 +52,8 @@ const MAXVECSIZE = vec.MAXVECSIZE;
 pub fn parseSexpr(lexer: *Lexer) !Sexpr {
     switch (lexer.token) {
         .end => return sxEnd,
-        .integer => {
-            return try makeInteger(lexer.ivalue);
-        },
-        .rational => {
-            return try makeRational(lexer.ivalue, lexer.dvalue);
-        },
-        .float => {
-            return makeFloat(lexer.fvalue);
+        .number => {
+            return try makeNumber(lexer.number);
         },
         .symbol => {
             return makeTaggedPtr(lexer.xvalue, .symbol);
@@ -164,6 +159,64 @@ fn parseVector(lexer: *Lexer) anyerror!Sexpr {
     return makeVector(tvec[0..siz]);
 }
 
+// How to print complex numbers
+const printZero  = 0b00000; // Both re and im are zero
+const printReal  = 0b00001; // re !=0 so print it
+const printPlus  = 0b00010; // im > 0 so print "+"
+const printMinus = 0b00100; // im = -1 so print "-"
+const printImag  = 0b01000; // im !=-1 and im != 0 and im != 1 so print it
+const printI     = 0b10000; // im != 0 so print "i"
+
+/// Checks whether the imaginary part of a number is -1 or +1
+/// Returns: -1 or 1 if the imaginary part is either of these values
+///          0 otherwise
+fn isUnit(num: Sexpr) i64 {
+    var int: i64 = undefined;
+    switch (@intToEnum(PtrTag, num & TagMask)) {
+        .small_int, .integer => {
+            int = pri.getAsInt(num);
+        },
+        else => { int = 0; },
+    }
+    return if (int == -1 or int == 1) int else 0;
+}
+
+/// Examines the real and imaginary parts of a complex number 
+/// and returns a series of bit flags that determine how the
+/// number should be printed.
+fn complexPrintFlags(re: Sexpr, im: Sexpr) u32 {
+    var flags: u32 = printZero;
+    const re_sign = pri.getSign(re);
+    const im_sign = pri.getSign(im);
+    const im_unit = isUnit(im);
+
+    // 0+0i ==> 0
+    if (re_sign == 0 and im_sign == 0)
+        return flags;
+
+    // 2, 2+3i
+    if (re_sign != 0)
+        flags |= printReal;
+
+    // 2+3i, +3i, +3/4i, 1+0.75i
+    if (im_sign > 0)
+        flags |= printPlus;
+
+    // -i
+    if (im_unit == -1)
+        flags |= printMinus;
+
+    // -3i or 3i
+    if (im_sign != 0 and im_unit == 0)
+        flags |= printImag;
+
+    // 2+3i, -i, +i
+    if (im_sign != 0)
+        flags |= printI;
+
+    return flags;
+}
+
 pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
     if (sexpr == nil) {
         if (quoted)
@@ -183,8 +236,8 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print("{d}", .{val});
         },
         .rational => {
-            const num = prim.getAsInt(cell.cellArray[exp].rat.num);
-            const den = prim.getAsInt(cell.cellArray[exp].rat.den);
+            const num = pri.getAsInt(cell.cellArray[exp].rat.num);
+            const den = pri.getAsInt(cell.cellArray[exp].rat.den);
             print("{d}/{d}", .{num,den});
         },
         .float => {
@@ -192,10 +245,28 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print("{d}", .{val});
         },
         .polar => {
-            print("Not implemented yet\n", .{});
+            try printSexpr(cell.cellArray[exp].pol.mag, false);
+            print("@", .{});
+            try printSexpr(cell.cellArray[exp].pol.ang, false);
         },
         .complex => {
-            print("Not implemented yet\n", .{});
+            const re = cell.cellArray[exp].cmp.re;
+            const im = cell.cellArray[exp].cmp.im;
+            const flags = complexPrintFlags(re, im);
+            if (flags == printZero) {
+                print("0", .{});
+            } else {
+                if (flags & printReal != 0)
+                    try printSexpr(re, false);
+                if (flags & printPlus != 0)
+                    print("+", .{});
+                if (flags & printMinus != 0)
+                    print("-", .{});
+                if (flags & printImag != 0)
+                    try printSexpr(im, false);
+                if (flags & printI != 0)
+                    print("i", .{});
+            }
         },
         .boolean => {
             print("#{s}", .{ if (exp == 0) "f" else "t" });
@@ -218,7 +289,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print(")", .{});
         },
         .primitive => {
-            print("#<primitive:{s}>", .{prim.getName(exp)});
+            print("#<primitive:{s}>", .{pri.getName(exp)});
         },
         .procedure => {
             print("#<procedure>", .{});

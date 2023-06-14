@@ -1,3 +1,19 @@
+2023-06-14 - Basic support for complex numbers
+             Completely rewrote the tokenization of numbers in a more generic
+             way. This allows the real and imaginary parts of a complex number
+             to be any combination of reals (small_int, integer, rational or
+             float). There are two distinct literal formats for complex numbers:
+             rectangular (a+bi) or polar (mag@angle). Apparently, both Racket
+             and Gambit convert numbers entered in polar format to rectangular.
+             I decided to keep them internally as separate types because
+             multiplicative operations can be performed faster and more
+             accurately in polar form. All the math primitives need to be
+             reviewed in order to support complex and rational numbers. This
+             is coming soon. Although I've generally been following the R5RS
+             spec, for numbers I opted to follow the R6RS grammar because
+             it eliminates the "non-exact digits", '#', and clarifies a few
+             other things (e.g. inf.0/nan.0).
+
 2023-06-08 - Restructure error handling/logging
              There are a few things I dislike about Zig's error mechanism.
              First there's the problem that it still can't infer the error

@@ -26,6 +26,19 @@ pub const ParsingError = error{
     InvalidCharName,
 };
 
+pub const TokenError = error{
+    InvalidNumber,
+    InvalidComplexNumber,
+    InvalidNumberPrefix,
+    InvalidBase2Number,
+    InvalidBase8Number,
+    InvalidBase10Number,
+    InvalidBase16Number,
+    InvalidMatissaWidth,
+    ExpectedExponent,
+
+};
+
 pub const EvalError = error{
     UndefinedVariable,
     LetrecUndefVariable,
@@ -61,7 +74,7 @@ pub const EvalError = error{
     InvalidDenominator,
 };
 
-pub const SchemeError = ReadError || ParsingError || EvalError;
+pub const SchemeError = ReadError || TokenError || ParsingError || EvalError;
 
 test "error sets" {
     print("\n", .{});

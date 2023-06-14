@@ -40,12 +40,10 @@ var freeCells: u32 = undefined;
 pub const Cell = packed union {
     int: i64,
     flt: f64,
-    sym: u32,
-    str: u32,
     dot: Pair,
     rat: Rational,
-    cmp: Complex,
     pol: Polar,
+    cmp: Complex,
 
     /// Allocate and initialize memory for `n` cells
     pub fn init(n: u32) !void {
