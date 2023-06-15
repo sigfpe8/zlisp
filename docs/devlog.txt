@@ -1,3 +1,9 @@
+2023-06-15 - More support for rational and complex numbers
+             Adapted some numeric predicates to rational/polar/complex, fixed
+             some others and added `make-polar` and `make-rectangular`. When
+             making numbes (`makeXXX()`), converto to integer zero if possible.
+             In `makeRational()`, try to reduce the ratio to lowest terms.
+
 2023-06-14 - Basic support for complex numbers
              Completely rewrote the tokenization of numbers in a more generic
              way. This allows the real and imaginary parts of a complex number

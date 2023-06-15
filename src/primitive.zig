@@ -17,11 +17,13 @@ const EvalError = @import("error.zig").EvalError;
 const UntaggedPtr = sexp.UntaggedPtr;
 const TaggedInt = sexp.TaggedInt;
 const print = std.debug.print;
-const makeTaggedPtr = sexp.makeTaggedPtr;
-const makePair = sexp.makePair;
+const makeChar = sexp.makeChar;
+const makeComplex = sexp.makeComplex;
 const makeInteger = sexp.makeInteger;
 const makeFloat = sexp.makeFloat;
-const makeChar = sexp.makeChar;
+const makePair = sexp.makePair;
+const makePolar = sexp.makePolar;
+const makeTaggedPtr = sexp.makeTaggedPtr;
 const unlimited = std.math.maxInt(u32);
 
 // All functions named 'pXXX()' are primitives (a.k.a in Scheme as
@@ -42,42 +44,44 @@ const FunDisp = struct {
 };
 
 const PrimitTable = [_]FunDisp{
-    .{ .name = "boolean?",      .func = pBoolPred,    .min = 1, .max = 1, },
-    .{ .name = "car",           .func = pCar,         .min = 1, .max = 1, },
-    .{ .name = "cdr",           .func = pCdr,         .min = 1, .max = 1, },
-    .{ .name = "char?",         .func = pCharPred,    .min = 1, .max = 1, },
-    .{ .name = "char->integer", .func = pCharToInt,   .min = 1, .max = 1, },
-    .{ .name = "complex?",      .func = pComplexPred, .min = 1, .max = 1, },
-    .{ .name = "cons",          .func = pCons,        .min = 2, .max = 2, },
-    .{ .name = "exact?",        .func = pExactPred,   .min = 1, .max = 1, },
-    .{ .name = "inexact?",      .func = pInexactPred, .min = 1, .max = 1, },
-    .{ .name = "integer?",      .func = pIntPred,     .min = 1, .max = 1, },
-    .{ .name = "integer->char", .func = pIntToChar,   .min = 1, .max = 1, },
-    .{ .name = "length",        .func = pLength,      .min = 1, .max = 1, },
-    .{ .name = "list",          .func = pList,        .min = 0, .max = unlimited, },
-    .{ .name = "list?",         .func = pListPred,    .min = 1, .max = 1, },
-    .{ .name = "null?",         .func = pNullPred,    .min = 1, .max = 1, },
-    .{ .name = "number?",       .func = pNumPred,     .min = 1, .max = 1, },
-    .{ .name = "pair?",         .func = pPairPred,    .min = 1, .max = 1, },
-    .{ .name = "procedure?",    .func = pProcPred,    .min = 1, .max = 1, },
-    .{ .name = "rational?",     .func = pRatPred,     .min = 1, .max = 1, },
-    .{ .name = "real?",         .func = pRealPred,    .min = 1, .max = 1, },
-    .{ .name = "reverse",       .func = pReverse,     .min = 1, .max = 1, },
-    .{ .name = "string?",       .func = pStrPred,     .min = 1, .max = 1, },
-    .{ .name = "string-length", .func = pStrLen,      .min = 1, .max = 1, },
-    .{ .name = "string-ref",    .func = pStrRef,      .min = 2, .max = 2, },
-    .{ .name = "symbol?",       .func = pSymbPred,    .min = 1, .max = 1, },
-    .{ .name = "vector?",       .func = pVecPred,     .min = 1, .max = 1, },
-    .{ .name = "zero?",         .func = pZeroPred,    .min = 1, .max = 1, },
-    .{ .name = "+",             .func = pPlus,        .min = 0, .max = unlimited, },
-    .{ .name = "-",             .func = pMinus,       .min = 1, .max = unlimited, },
-    .{ .name = "*",             .func = pTimes,       .min = 0, .max = unlimited, },
-    .{ .name = "/",             .func = pDiv,         .min = 1, .max = unlimited, },
-    .{ .name = "<",             .func = pLess,        .min = 1, .max = unlimited, },
-    .{ .name = "<=",            .func = pLessEq,      .min = 1, .max = unlimited, },
-    .{ .name = "=",             .func = pEqual,       .min = 1, .max = unlimited, },
-    .{ .name = ">",             .func = pGrt,         .min = 1, .max = unlimited, },
-    .{ .name = ">=",            .func = pGrtEq,       .min = 1, .max = unlimited, },
+    .{ .name = "boolean?",         .func = pBoolPred,        .min = 1, .max = 1, },
+    .{ .name = "car",              .func = pCar,             .min = 1, .max = 1, },
+    .{ .name = "cdr",              .func = pCdr,             .min = 1, .max = 1, },
+    .{ .name = "char?",            .func = pCharPred,        .min = 1, .max = 1, },
+    .{ .name = "char->integer",    .func = pCharToInt,       .min = 1, .max = 1, },
+    .{ .name = "complex?",         .func = pComplexPred,     .min = 1, .max = 1, },
+    .{ .name = "cons",             .func = pCons,            .min = 2, .max = 2, },
+    .{ .name = "exact?",           .func = pExactPred,       .min = 1, .max = 1, },
+    .{ .name = "inexact?",         .func = pInexactPred,     .min = 1, .max = 1, },
+    .{ .name = "integer?",         .func = pIntPred,         .min = 1, .max = 1, },
+    .{ .name = "integer->char",    .func = pIntToChar,       .min = 1, .max = 1, },
+    .{ .name = "length",           .func = pLength,          .min = 1, .max = 1, },
+    .{ .name = "list",             .func = pList,            .min = 0, .max = unlimited, },
+    .{ .name = "list?",            .func = pListPred,        .min = 1, .max = 1, },
+    .{ .name = "make-polar",       .func = pMakePolar,       .min = 2, .max = 2, },
+    .{ .name = "make-rectangular", .func = pMakeRectangular, .min = 2, .max = 2, },
+    .{ .name = "null?",            .func = pNullPred,        .min = 1, .max = 1, },
+    .{ .name = "number?",          .func = pNumPred,         .min = 1, .max = 1, },
+    .{ .name = "pair?",            .func = pPairPred,        .min = 1, .max = 1, },
+    .{ .name = "procedure?",       .func = pProcPred,        .min = 1, .max = 1, },
+    .{ .name = "rational?",        .func = pRatPred,         .min = 1, .max = 1, },
+    .{ .name = "real?",            .func = pRealPred,        .min = 1, .max = 1, },
+    .{ .name = "reverse",          .func = pReverse,         .min = 1, .max = 1, },
+    .{ .name = "string?",          .func = pStrPred,         .min = 1, .max = 1, },
+    .{ .name = "string-length",    .func = pStrLen,          .min = 1, .max = 1, },
+    .{ .name = "string-ref",       .func = pStrRef,          .min = 2, .max = 2, },
+    .{ .name = "symbol?",          .func = pSymbPred,        .min = 1, .max = 1, },
+    .{ .name = "vector?",          .func = pVecPred,         .min = 1, .max = 1, },
+    .{ .name = "zero?",            .func = pZeroPred,        .min = 1, .max = 1, },
+    .{ .name = "+",                .func = pPlus,            .min = 0, .max = unlimited, },
+    .{ .name = "-",                .func = pMinus,           .min = 1, .max = unlimited, },
+    .{ .name = "*",                .func = pTimes,           .min = 0, .max = unlimited, },
+    .{ .name = "/",                .func = pDiv,             .min = 1, .max = unlimited, },
+    .{ .name = "<",                .func = pLess,            .min = 1, .max = unlimited, },
+    .{ .name = "<=",               .func = pLessEq,          .min = 1, .max = unlimited, },
+    .{ .name = "=",                .func = pEqual,           .min = 1, .max = unlimited, },
+    .{ .name = ">",                .func = pGrt,             .min = 1, .max = unlimited, },
+    .{ .name = ">=",               .func = pGrtEq,           .min = 1, .max = unlimited, },
 };
 
 pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
@@ -259,22 +263,11 @@ fn pNumPred(args: []Sexpr) EvalError!Sexpr {
 
 fn pIntPred(args: []Sexpr) EvalError!Sexpr {
     // (integer? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
-    if (tag == .small_int or tag == .integer)
-        return sxTrue;
-    // Check if real number is actually an integer
-    if (tag == .float) {
-        const num = cell.cellArray[args[0] >> TagShift].flt;
-        const inum: i64 = @floatToInt(i64, num);
-        if (@intToFloat(f64, inum) == num)
-            return sxTrue;
-    }
-    return sxFalse;
+    return if (isInteger(args[0])) sxTrue else sxFalse;
  }
 
-
 fn pRatPred(args: []Sexpr) EvalError!Sexpr {
-   // (rational? <exp>)
+    // (rational? <exp>)
     const tag  = args[0] & TagMask;
     const tagLo = @enumToInt(PtrTag.small_int);
     const tagHi = @enumToInt(PtrTag.float);
@@ -282,7 +275,7 @@ fn pRatPred(args: []Sexpr) EvalError!Sexpr {
  }
 
 fn pRealPred(args: []Sexpr) EvalError!Sexpr {
-   // (real? <exp>)
+    // (real? <exp>)
     const tag  = args[0] & TagMask;
     const tagLo = @enumToInt(PtrTag.small_int);
     const tagHi = @enumToInt(PtrTag.float);
@@ -290,7 +283,7 @@ fn pRealPred(args: []Sexpr) EvalError!Sexpr {
  }
 
 fn pComplexPred(args: []Sexpr) EvalError!Sexpr {
-   // (real? <exp>)
+    // (complex? <exp>)
     const tag  = args[0] & TagMask;
     const tagLo = @enumToInt(PtrTag.small_int);
     const tagHi = @enumToInt(PtrTag.complex);
@@ -299,38 +292,127 @@ fn pComplexPred(args: []Sexpr) EvalError!Sexpr {
 
 fn pExactPred(args: []Sexpr) EvalError!Sexpr {
     // (exact? <exp>)
-    const tag   = args[0] & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.complex);
-    if (tag < tagLo or tag > tagHi)
-        return EvalError.ExpectedNumber;
-    
-    return if (@intToEnum(PtrTag, tag) == .float) sxFalse else sxTrue;
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    var exact: bool = false;
+
+   switch (tag) {
+        .small_int, .integer, .rational => exact = true,
+        .float => exact = false,
+        .polar => exact = isExactReal(cell.cellArray[ind].pol.mag) and
+                          isExactReal(cell.cellArray[ind].pol.ang),
+        .complex => exact = isExactReal(cell.cellArray[ind].cmp.re) and
+                            isExactReal(cell.cellArray[ind].cmp.im),
+        else => return EvalError.ExpectedNumber,
+   }
+
+    return if (exact) sxTrue else sxFalse;
  }
 
 fn pInexactPred(args: []Sexpr) EvalError!Sexpr {
-    // (inexact? <exp>) 
-    const tag   = args[0] & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.complex);
-    if (tag < tagLo or tag > tagHi)
-        return EvalError.ExpectedNumber;
-    
-    return if (@intToEnum(PtrTag, tag) == .float) sxTrue else sxFalse;
+    // (inexact? <exp>)
+    const exact = try pExactPred(args);
+    return if (exact == sxTrue) sxFalse else sxTrue;
  }
+
+/// Tests if a number represented as an Sexpr is an integer.
+pub fn isInteger(num: Sexpr) bool {
+    const tag = @intToEnum(PtrTag, num & TagMask);
+
+   return switch (tag) {
+        .small_int, .integer => true,
+        .rational => false,
+        .float => blk: {
+            const ind = num >> TagShift;
+            const fnum: f64 = cell.cellArray[ind].flt;
+            const inum: i64 = @floatToInt(i64, fnum);
+            break :blk if (@intToFloat(f64, inum) == fnum)
+                            true
+                       else
+                            false;
+        },
+        .polar => blk: {
+            const ind = num >> TagShift;
+            const mag = cell.cellArray[ind].pol.mag;
+            const ang = cell.cellArray[ind].pol.ang;
+            // To be honest we should also test if the angle is pi,
+            // which would correspond to a negative integer, but
+            // the innacuracies introduced by the floating-point
+            // representation of the angle in radians make this quite
+            // unreliable. Perhaps there should be an epsilon for
+            // these situations.
+            break :blk if (isInteger(mag) and isZeroReal(ang))
+                            true
+                       else
+                            false;
+        },
+        .complex => blk: {
+            const ind = num >> TagShift;
+            const re = cell.cellArray[ind].cmp.re;
+            const im = cell.cellArray[ind].cmp.im;
+            break :blk if (isInteger(re) and isZeroReal(im))
+                            true
+                       else
+                            false;
+        },
+        else => unreachable,
+   };
+}
+
+/// Tests if a real number represented as an Sexpr is exact.
+/// Must not be called with complex types.
+pub fn isExactReal(num: Sexpr) bool {
+    const tag = @intToEnum(PtrTag, num & TagMask);
+
+   return switch (tag) {
+        .small_int, .integer, .rational => true,
+        .float => false,
+        else => unreachable,
+   };
+}
+
+/// Tests if a real number represented as an Sexpr is zero.
+/// Must not be called with complex types.
+pub fn isZeroReal(num: Sexpr) bool {
+    const ind = num >> TagShift;
+    const tag = @intToEnum(PtrTag, num & TagMask);
+
+   return switch (tag) {
+        .small_int => ind == 0,
+        .integer => cell.cellArray[ind].int == 0,
+        .rational => cell.cellArray[ind].rat.num == 0,
+        .float => cell.cellArray[ind].flt == 0.0,
+        else => unreachable,
+   };
+}
+
+fn pMakePolar(args: []Sexpr) EvalError!Sexpr {
+    // (make-polar mag ang)
+    return makePolar(args[0], args[1]);
+}
+
+fn pMakeRectangular(args: []Sexpr) EvalError!Sexpr {
+    // (make-rectangular re im)
+    return makeComplex(args[0], args[1]);
+}
 
 fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
     // (zero? <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
     const tag = @intToEnum(PtrTag, exp & TagMask);
-    const isZero: bool = switch (tag) {
+    const zero: bool = switch (tag) {
         .small_int => ind == 0,
         .integer => cell.cellArray[ind].int == 0,
+        .rational => cell.cellArray[ind].rat.num == 0,
         .float => cell.cellArray[ind].flt == 0.0,
+        .polar => isZeroReal(cell.cellArray[ind].pol.mag),
+        .complex => isZeroReal(cell.cellArray[ind].cmp.re) 
+                and isZeroReal(cell.cellArray[ind].cmp.re),
         else => return EvalError.ExpectedNumber,
     };
-    return  if (isZero) sxTrue else sxFalse;
+    return  if (zero) sxTrue else sxFalse;
 }
 
 // Determine the highest number type in a list of arguments

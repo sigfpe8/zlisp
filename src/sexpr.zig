@@ -1,13 +1,14 @@
 const std  = @import("std");
 const cell = @import("cell.zig");
+const evl = @import("eval.zig");
+const pro = @import("procedure.zig");
 const vec  = @import("vector.zig");
-const proc = @import("procedure.zig");
-const eval = @import("eval.zig");
 
 const Cell = cell.Cell;
-const Environ = eval.Environ;
+const Environ = evl.Environ;
 const VectorId = vec.VectorId;
 const EvalError = @import("error.zig").EvalError;
+const isZeroReal = @import("primitive.zig").isZeroReal;
 
 // A symbolic expression (S-expression or Sexpr) is a tagged pointer.
 //
@@ -102,16 +103,28 @@ pub fn makeInteger(val: i64) !Sexpr {
 pub fn makeRational(num: i64, den: i64) !Sexpr {
     if (den <= 0)
         return EvalError.InvalidDenominator;
+    if (num == 0)
+        return makeInteger(0);
     
-    const tnum = std.math.absInt(num) catch unreachable;
-    const tmod = std.math.mod(i64, tnum, den) catch unreachable;
-    if (tmod == 0) {
-        // This is really an integer in disguise (e.g. 8/4)
-        return makeInteger(@divExact(num, den));
+    var rnum = num;
+    var rden = den;
+
+    // Can't get the absolute value of minInt
+    if (num != std.math.minInt(i64)) {
+        // Reduce to lowest terms (-2/4 --> -1/2)
+        const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
+        if (gcd != 1) {
+            rnum = @divExact(num, gcd);
+            rden = @divExact(den, gcd);
+            // Is this is an integer? (e.g. 4/2 --> 2/1 --> 2)
+            if (rden == 1)
+                return makeInteger(rnum);
+        }
     }
+
     const ptr = try Cell.alloc();
-    cell.cellArray[ptr].rat.num = try makeInteger(num);
-    cell.cellArray[ptr].rat.den = try makeInteger(den);
+    cell.cellArray[ptr].rat.num = try makeInteger(rnum);
+    cell.cellArray[ptr].rat.den = try makeInteger(rden);
     return makeTaggedPtr(ptr, .rational);
 }
 
@@ -120,14 +133,6 @@ pub fn makeFloat(val: f64) !Sexpr {
     cell.cellArray[index].flt = val;
     return makeTaggedPtr(index, .float);
 }
-
-// pub fn makeVector(siz: u32, tvec: []Sexpr) !Sexpr {
-//     if (siz == 0)
-//         return sxNullVec;
-//     const id = try vec.alloc(siz);
-//     std.mem.copy(Sexpr, vec.vecArray[id+1..id+1+siz], tvec[0..siz]);
-//     return makeTaggedPtr(id, .vector);
-// }
 
 pub fn makeVector(tvec: []Sexpr) !Sexpr {
     const len: u32 = @truncate(u32, tvec.len);
@@ -139,8 +144,8 @@ pub fn makeVector(tvec: []Sexpr) !Sexpr {
 }
 
 pub fn makeProc(env: *Environ, formals: Sexpr, body: Sexpr) !Sexpr {
-    const pid = try proc.Proc.alloc();
-    const ptr = &proc.procArray[pid];
+    const pid = try pro.Proc.alloc();
+    const ptr = &pro.procArray[pid];
     ptr.env     = env;
     ptr.formals = formals;
     ptr.body    = body;
@@ -153,6 +158,9 @@ pub fn makeChar(code: i64) Sexpr {
 }
 
 pub fn makePolar(mag: Sexpr, ang: Sexpr) !Sexpr {
+    if (isZeroReal(mag))
+        return makeInteger(0);  // Convert 0@ang to 0
+
     const ptr = try Cell.alloc();
     cell.cellArray[ptr].pol.mag = mag;
     cell.cellArray[ptr].pol.ang = ang;
@@ -160,6 +168,9 @@ pub fn makePolar(mag: Sexpr, ang: Sexpr) !Sexpr {
 }
 
 pub fn makeComplex(re: Sexpr, im: Sexpr) !Sexpr {
+    if (isZeroReal(re) and isZeroReal(im))
+        return makeInteger(0);  // Convert 0+0i to 0
+
     const ptr = try Cell.alloc();
     cell.cellArray[ptr].cmp.re = re;
     cell.cellArray[ptr].cmp.im = im;

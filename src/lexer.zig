@@ -420,10 +420,10 @@ pub const Lexer = struct {
                     'i', 'I' => { exact = false; prefix += 8; },
                     else => return TokenError.InvalidNumberPrefix,
                 }
+                self.nextChar();    // Skip second prefix letter
                 // Duplicated radix or exactness?
                 if (prefix == 3 or prefix == 12)
                     return TokenError.InvalidNumberPrefix;
-                self.nextChar();    // Skip second prefix letter
             }
         }
 
@@ -551,14 +551,14 @@ pub const Lexer = struct {
         return TokenError.InvalidNumber;
     }
 
-    // Called with cchar == '.' or cchar == 'e' (exp marker)
-    // If integer part is present, 'begin' points to 1st digit
-    // Otherwise it points to '.' or 'e'.
+    // Called with cchar == '.' or cchar == exponent marker.
+    // If integer part is present, 'begin' points to its 1st digit.
+    // Otherwise it points to '.' or the exponent marker.
     fn parseDecimal(self: *Lexer, radix: u8, begin: usize) !Real {
         if (radix != 10)
             return TokenError.InvalidBase10Number;
         // <decimal 10> --> <uinteger 10> <suffix>
-        //     | .<digit 10>+ <suffix>
+        //     | . <digit 10>+ <suffix>
         //     | <digit 10>+ . <digit 10>* <suffix>
         //     | <digit 10>+ . <suffix>
         // <suffix> --> <empty> | <exponent marker> <sign> <digit 10>+
