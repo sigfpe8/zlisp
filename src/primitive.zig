@@ -2,6 +2,7 @@ const std = @import("std");
 const sexp = @import("sexpr.zig");
 const eval = @import("eval.zig");
 const cell = @import("cell.zig");
+const inp = @import("inpout.zig");
 const nbr = @import("number.zig");
 const str = @import("string.zig");
 const sym = @import("symbol.zig");
@@ -26,6 +27,11 @@ const makePair = sexp.makePair;
 const makePolar = sexp.makePolar;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const unlimited = std.math.maxInt(u32);
+
+const pDisplay = inp.pDisplay;
+const pNewline = inp.pNewline;
+const pWrite = inp.pWrite;
+const pWriteChar = inp.pWriteChar;
 
 const getAsInt = nbr.getAsInt;
 const getAsFloat = nbr.getAsFloat;
@@ -74,6 +80,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "char->integer",    .func = pCharToInt,       .min = 1, .max = 1, },
     .{ .name = "complex?",         .func = pComplexPred,     .min = 1, .max = 1, },
     .{ .name = "cons",             .func = pCons,            .min = 2, .max = 2, },
+    .{ .name = "display",          .func = pDisplay,         .min = 1, .max = 1, },
     .{ .name = "exact?",           .func = pExactPred,       .min = 1, .max = 1, },
     .{ .name = "inexact?",         .func = pInexactPred,     .min = 1, .max = 1, },
     .{ .name = "integer?",         .func = pIntPred,         .min = 1, .max = 1, },
@@ -83,6 +90,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "list?",            .func = pListPred,        .min = 1, .max = 1, },
     .{ .name = "make-polar",       .func = pMakePolar,       .min = 2, .max = 2, },
     .{ .name = "make-rectangular", .func = pMakeRectangular, .min = 2, .max = 2, },
+    .{ .name = "newline",          .func = pNewline,         .min = 0, .max = 0, },
     .{ .name = "null?",            .func = pNullPred,        .min = 1, .max = 1, },
     .{ .name = "number?",          .func = pNumPred,         .min = 1, .max = 1, },
     .{ .name = "pair?",            .func = pPairPred,        .min = 1, .max = 1, },
@@ -95,6 +103,8 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "string-ref",       .func = pStrRef,          .min = 2, .max = 2, },
     .{ .name = "symbol?",          .func = pSymbPred,        .min = 1, .max = 1, },
     .{ .name = "vector?",          .func = pVecPred,         .min = 1, .max = 1, },
+    .{ .name = "write",            .func = pWrite,           .min = 1, .max = 1, },
+    .{ .name = "write-char",       .func = pWriteChar,       .min = 1, .max = 1, },
     .{ .name = "zero?",            .func = pZeroPred,        .min = 1, .max = 1, },
     .{ .name = "+",                .func = pPlus,            .min = 0, .max = unlimited, },
     .{ .name = "-",                .func = pMinus,           .min = 1, .max = unlimited, },

@@ -5,6 +5,7 @@ const Lexer = lex.Lexer;
 const parser = @import("parser.zig");
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
+const out = @import("inpout.zig");
 const sym = @import("symbol.zig");
 const prim = @import("primitive.zig");
 const vec = @import("vector.zig");
@@ -111,7 +112,7 @@ fn repl(lexer: *Lexer) !void {
         };
 
         if (!lexer.silent) {
-            try parser.printSexpr(sexpr, true);
+            out.printSexpr(sexpr, true);
             try stdout.print("\n", .{});
         }
     }
