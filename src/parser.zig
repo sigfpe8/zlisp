@@ -5,14 +5,20 @@ const Lexer = lex.Lexer;
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
 const erz = @import("error.zig");
+const nbr = @import("number.zig");
 const sexp = @import("sexpr.zig");
 const str = @import("string.zig");
 const sym = @import("symbol.zig");
 const eval = @import("eval.zig");
-const pri = @import("primitive.zig");
 const vec = @import("vector.zig");
 const spc = @import("special.zig");
+
+const getName = @import("primitive.zig").getName;
+
 const print = std.debug.print;
+
+const getAsInt = nbr.getAsInt;
+const getSign = nbr.getSign;
 
 const Sexpr = sexp.Sexpr;
 const TaggedPtr = sexp.TaggedPtr;
@@ -174,7 +180,7 @@ fn isUnit(num: Sexpr) i64 {
     var int: i64 = undefined;
     switch (@intToEnum(PtrTag, num & TagMask)) {
         .small_int, .integer => {
-            int = pri.getAsInt(num);
+            int = getAsInt(num);
         },
         else => { int = 0; },
     }
@@ -186,8 +192,8 @@ fn isUnit(num: Sexpr) i64 {
 /// number should be printed.
 fn complexPrintFlags(re: Sexpr, im: Sexpr) u32 {
     var flags: u32 = printZero;
-    const re_sign = pri.getSign(re);
-    const im_sign = pri.getSign(im);
+    const re_sign = getSign(re);
+    const im_sign = getSign(im);
     const im_unit = isUnit(im);
 
     // 0+0i ==> 0
@@ -236,8 +242,8 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print("{d}", .{val});
         },
         .rational => {
-            const num = pri.getAsInt(cell.cellArray[exp].rat.num);
-            const den = pri.getAsInt(cell.cellArray[exp].rat.den);
+            const num = getAsInt(cell.cellArray[exp].rat.num);
+            const den = getAsInt(cell.cellArray[exp].rat.den);
             print("{d}/{d}", .{num,den});
         },
         .float => {
@@ -289,7 +295,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) !void {
             print(")", .{});
         },
         .primitive => {
-            print("#<primitive:{s}>", .{pri.getName(exp)});
+            print("#<primitive:{s}>", .{getName(exp)});
         },
         .procedure => {
             print("#<procedure>", .{});

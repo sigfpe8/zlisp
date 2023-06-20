@@ -1,3 +1,16 @@
+2023-96-20 - Arithmetic primitives for rational and complex numbers
+             Adapted the basic arithmetic primitives (+ - * / < <= = > >=) to
+             rational, polar and complex numbers. Since each component of
+             a polar/complex number can be any of 3 types (integer, float or
+             rational), this generates a lot of complexity when these things
+             get mixed in an expression. I think it all works correctly in
+             the end, but it looks quite inefficient. Without static types I
+             think even a compiler would have a hard time optimizing such
+             operations. Anyway, it's nice to see expressions like this one
+             below evaluating corretly:
+                > (= 2 2.0 4/2 8/4+0i 10/5@0)
+                #t
+
 2023-06-15 - More support for rational and complex numbers
              Adapted some numeric predicates to rational/polar/complex, fixed
              some others and added `make-polar` and `make-rectangular`. When

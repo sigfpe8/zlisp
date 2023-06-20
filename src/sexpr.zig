@@ -8,7 +8,7 @@ const Cell = cell.Cell;
 const Environ = evl.Environ;
 const VectorId = vec.VectorId;
 const EvalError = @import("error.zig").EvalError;
-const isZeroReal = @import("primitive.zig").isZeroReal;
+const isZeroReal = @import("number.zig").isZeroReal;
 
 // A symbolic expression (S-expression or Sexpr) is a tagged pointer.
 //
@@ -68,7 +68,6 @@ pub const SpecialTag = enum { form, tvoid, undef, end };
 pub const SpecialTagMask = 0x7;
 pub const SpecialTagShift = 3;
 
-
 pub const Sexpr = TaggedPtr;
 
 pub fn makeTaggedPtr(ptr: UntaggedPtr, tag: PtrTag) TaggedPtr {
@@ -101,17 +100,21 @@ pub fn makeInteger(val: i64) !Sexpr {
 }
 
 pub fn makeRational(num: i64, den: i64) !Sexpr {
-    if (den <= 0)
-        return EvalError.InvalidDenominator;
+    if (den <= 0) {
+        return if (den == 0) EvalError.DivisionByZero else EvalError.InvalidDenominator;
+    }
+
     if (num == 0)
         return makeInteger(0);
+    if (den == 1)
+        return makeInteger(num);
     
+    // Try to reduce to lowest terms (-2/4 --> -1/2)
     var rnum = num;
     var rden = den;
 
     // Can't get the absolute value of minInt
     if (num != std.math.minInt(i64)) {
-        // Reduce to lowest terms (-2/4 --> -1/2)
         const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
         if (gcd != 1) {
             rnum = @divExact(num, gcd);

@@ -1,16 +1,25 @@
 const std = @import("std");
 const chr = @import("char.zig");
 const erz = @import("error.zig");
+const nbr = @import("number.zig");
 const sxp = @import("sexpr.zig");
 const sym = @import("symbol.zig");
 const str = @import("string.zig");
 
 const ascii = std.ascii;
+
+const Number = nbr.Number;
+const Complex = nbr.Complex;
+const Polar = nbr.Polar;
+const Rational = nbr.Rational;
+const Real = nbr.Real;
+
 const makeComplex = sxp.makeComplex;
 const makeFloat = sxp.makeFloat;
 const makeInteger = sxp.makeInteger;
 const makePolar = sxp.makePolar;
 const makeRational = sxp.makeRational;
+const makeReal = nbr.makeReal;
 
 const mem = std.mem;
 const print = std.debug.print;
@@ -107,33 +116,6 @@ fn invalidNumber(radix: u8) TokenError {
     unreachable;
 }
 
-/// Number types used for tokenization only
-const Number = union(enum) {
-    pol: Pol64,
-    cmp: Cmp64,
-};
-
-const Pol64 = struct {
-    mag: Real,
-    ang: Real,
-};
-
-const Cmp64 = struct {
-    re: Real,
-    im: Real,
-};
-
-const Real = union(enum) {
-    int: i64,
-    flt: f64,
-    rat: Rat64,
-};
-
-const Rat64 = struct {
-    num: i64,
-    den: i64,
-};
-
 fn signReal(sign: u8, real: Real) Real {
     if (sign == '+')
         return real;
@@ -142,19 +124,9 @@ fn signReal(sign: u8, real: Real) Real {
         .int => |int| Real{ .int = -int },
         .flt => |flt| Real{ .flt = -flt },
         .rat => |rat| Real{ .rat =
-            Rat64{ .num = -rat.num, .den = rat.den }
+            Rational{ .num = -rat.num, .den = rat.den }
         },
     };
-}
-
-fn makeReal(real: Real) !Sexpr {
-    var sexpr: Sexpr = undefined;    
-    switch (real) {
-        .int => |int| { sexpr = try makeInteger(int); },
-        .flt => |flt| { sexpr = try makeFloat(flt); },
-        .rat => |rat| { sexpr = try makeRational(rat.num,rat.den); },
-    }
-    return sexpr;
 }
 
 fn getSign(real: Real) i64 {
@@ -442,7 +414,7 @@ pub const Lexer = struct {
                 //     | + <naninf> i | - <naninf> i
                 //     | + i | - i
                 self.nextChar();    // Skip i
-                self.number = Number{ .cmp = Cmp64{ .re = Real{.int = 0}, .im = real }};
+                self.number = Number{ .cmp = Complex{ .re = Real{.int = 0}, .im = real }};
                 return;
             }
         } else {
@@ -453,7 +425,7 @@ pub const Lexer = struct {
         if (self.cchar == '@') {
             self.nextChar();    // Skip @
             imag = try self.parseReal(radix);
-            self.number = Number{ .pol = Pol64{ .mag = real, .ang = imag }};
+            self.number = Number{ .pol = Polar{ .mag = real, .ang = imag }};
             return;
         }
 
@@ -465,14 +437,14 @@ pub const Lexer = struct {
             imag = signReal(sign,imag);
             if (self.cchar == 'i') {
                 self.nextChar();    // Skip i
-                self.number = Number{ .cmp = Cmp64{ .re = real, .im = imag }};
+                self.number = Number{ .cmp = Complex{ .re = real, .im = imag }};
                 return;
             }
             return TokenError.InvalidComplexNumber;
         }
 
         // Only real part
-        self.number = Number{ .cmp = Cmp64{ .re = real, .im = Real{ .int = 0 }}};
+        self.number = Number{ .cmp = Complex{ .re = real, .im = Real{ .int = 0 }}};
     }
 
     fn parseRational(self: *Lexer, radix: u8, numBegin: usize) !Real {
@@ -495,7 +467,7 @@ pub const Lexer = struct {
         end = self.cpos - 1;
         const den = try std.fmt.parseInt(i64, self.line[begin..end], radix);
 
-        return Real{ .rat = Rat64{.num = num, .den = den} };
+        return Real{ .rat = Rational{.num = num, .den = den} };
     }
 
     fn parseReal(self: *Lexer, radix: u8) !Real {

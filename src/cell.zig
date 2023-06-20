@@ -16,17 +16,17 @@ pub const Pair = packed struct {
     cdr: Sexpr,
 };
 
-pub const Rational = packed struct {
+pub const Rat64 = packed struct {
     num: Sexpr,     // Numerator
     den: Sexpr,     // Denominator (> 0)
 };
 
-pub const Complex = packed struct {
+pub const Cmp64 = packed struct {
     re: Sexpr,      // Real part
     im: Sexpr,      // Imaginary part
 };
 
-pub const Polar = packed struct {
+pub const Pol64 = packed struct {
     mag: Sexpr,     // Magnitude
     ang: Sexpr,     // Angle
 };
@@ -41,9 +41,9 @@ pub const Cell = packed union {
     int: i64,
     flt: f64,
     dot: Pair,
-    rat: Rational,
-    pol: Polar,
-    cmp: Complex,
+    rat: Rat64,
+    pol: Pol64,
+    cmp: Cmp64,
 
     /// Allocate and initialize memory for `n` cells
     pub fn init(n: u32) !void {

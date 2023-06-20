@@ -50,6 +50,7 @@ pub const EvalError = error{
     ExpectedVariable,
     ExpectedList,
     ExpectedInteger,
+    ExpectedReal,
     ExpectedNumber,
     ExpectedCharacter,
     ExpectedString,
