@@ -1,6 +1,7 @@
 const std = @import("std");
 const cel = @import("cell.zig");
 const chr = @import("char.zig");
+const lex = @import("lexer.zig");
 const nbr = @import("number.zig");
 const spc = @import("special.zig");
 const str = @import("string.zig");
@@ -8,18 +9,23 @@ const sxp = @import("sexpr.zig");
 const sym = @import("symbol.zig");
 const vec = @import("vector.zig");
 
+const Lexer = lex.Lexer;
+
 const Sexpr = sxp.Sexpr;
 const nil = sxp.nil;
 const PtrTag = sxp.PtrTag;
 const SpecialTag = sxp.SpecialTag;
 const SpecialTagMask = sxp.SpecialTagMask;
 const SpecialTagShift = sxp.SpecialTagShift;
+const sxFalse = sxp.sxFalse;
+const sxTrue = sxp.sxTrue;
 const sxVoid = sxp.sxVoid;
 const SymbolId = sym.SymbolId;
 const TaggedInt = sxp.TaggedInt;
 const TagMask = sxp.TagMask;
 const TagShift = sxp.TagShift;
 const UntaggedInt = sxp.UntaggedInt;
+const makePort = sxp.makePort;
 
 const EvalError = @import("error.zig").EvalError;
 const getName = @import("primitive.zig").getName;
@@ -29,18 +35,179 @@ const getSign = nbr.getSign;
 
 const MAXVECSIZE = vec.MAXVECSIZE;
 
-const print = std.debug.print;
+var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = ggpa.allocator();
 
+pub const PortId = u32;
+
+pub const Reader = std.fs.File.Reader;
+pub const Writer = std.fs.File.Writer;
+
+const InputPort = struct {
+    lexer: *Lexer,
+    name: []const u8,
+};
+
+const OutputPort = struct {
+    name: []const u8,
+    writer: Writer,
+};
+
+const NewPort = union(enum) {
+    inp: InputPort,
+    out: OutputPort,
+};
+
+pub const Port = union(enum) {
+    reader: Reader,
+    writer: Writer,
+};
+
+// This crashes the compiler :(
+// var portsTable = std.ArrayList(Port).initCapacity(allocator, 20);
+var portsTable = std.ArrayList(Port).init(allocator);
+
+var stdin = std.io.getStdIn().reader();   // Reader{}
+var stdout = std.io.getStdOut().writer(); // Writer{}
+var stderr = std.io.getStdOut().writer(); // Writer{}
+
+var stdinPort:  Sexpr = makePort(0);
+var stdoutPort: Sexpr = makePort(1);
+var stderrPort: Sexpr = makePort(2);
+
+pub fn init() !void {
+    try portsTable.append(.{ .reader = stdin  }); // [0]
+    try portsTable.append(.{ .writer = stdout }); // [1]
+    try portsTable.append(.{ .writer = stderr }); // [2]
+}
+
+pub fn deinit() void {
+    portsTable.deinit();
+}
+
+pub fn newReader(reader: Reader) !PortId {
+    const id = @truncate(PortId, portsTable.items.len);
+    try portsTable.append(.{ .reader = reader });
+    return id;
+}
+
+pub fn newWriter(writer: Writer) !PortId {
+    const id = @truncate(PortId, portsTable.items.len);
+    try portsTable.append(.{ .writer = writer });
+    return id;
+}
+
+pub fn print(comptime format: []const u8, args: anytype) void {
+    stdout.print(format, args) catch |err| {
+        std.debug.print("Error {any} writing to stdout.\n", .{err});
+    };
+}
+
+fn isInputPort(arg: Sexpr) bool {
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .port)
+        return false;
+    switch (portsTable.items[exp]) {
+        .reader => return true,
+        .writer => return false,
+    }
+}
+
+fn isOutputPort(arg: Sexpr) bool {
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .port)
+        return false;
+    switch (portsTable.items[exp]) {
+        .reader => return false,
+        .writer => return true,
+    }
+}
+
+pub fn pCurrentInputPort(args: []Sexpr) EvalError!Sexpr {
+    _ = args.len;
+    return stdinPort;
+}
+
+pub fn pCurrentOutputPort(args: []Sexpr) EvalError!Sexpr {
+    _ = args.len;
+    return stdoutPort;
+}
+
+pub fn pInputPortPred(args: []Sexpr) EvalError!Sexpr {
+    // (input-port? <exp>)
+    return if (isInputPort(args[0])) sxTrue else sxFalse;
+}
+
+pub fn pOutputPortPred(args: []Sexpr) EvalError!Sexpr {
+    // (output-port? <exp>)
+    return if (isOutputPort(args[0])) sxTrue else sxFalse;
+}
+
+pub fn pOpenOutputFile(args: []Sexpr) EvalError!Sexpr {
+    // (open-output-file <exp>)
+    const arg = args[0];
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+
+    const path = str.get(exp);
+    const file = std.fs.cwd().createFile(path, .{}) catch |err| {
+        std.debug.print("Could not open file \"{s}\" for output, error: {any}.\n", .{ path, err });
+        return EvalError.OpenOutputFileFailed;
+    };
+
+    const id = try newWriter(file.writer());
+    return makePort(id);
+}
+
+pub fn pCloseOutputPort(args: []Sexpr) EvalError!Sexpr {
+    // (close-output-port <port>)
+    const arg = args[0];
+    const pid = arg >> TagShift;
+    if (!isOutputPort(arg))
+        return EvalError.ExpectedOutputPort;
+    const writer = portsTable.items[pid].writer;
+    writer.context.close();
+    return sxVoid;
+}
+
+pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
+    // (close-input-port <port>)
+    const arg = args[0];
+    const pid = arg >> TagShift;
+    if (!isInputPort(arg))
+        return EvalError.ExpectedInputPort;
+    const reader = portsTable.items[pid].reader;
+    reader.context.close();
+    return sxVoid;
+}
 
 pub fn pDisplay(args: []Sexpr) EvalError!Sexpr {
     // (display <exp>)
+    const save_stdout = stdout;
+    defer stdout = save_stdout;
+    const save_stdoutPort = stdoutPort;
+    defer stdoutPort = save_stdoutPort;
+
+    if (args.len == 2) {
+        // (display <exp> <port>)
+        const arg = args[1];
+        if (!isOutputPort(arg))
+            return EvalError.ExpectedOutputPort;
+        const port = portsTable.items[arg >> TagShift];
+        stdout = port.writer;
+    }
+
     const arg = args[0];
     const exp = arg >> TagShift;
     const tag = @intToEnum(PtrTag, arg & TagMask);
     switch (tag) {
         .char => {
             const ch = @truncate(u8, exp);
-            print("{c}", .{ch});    
+            print("{c}", .{ch});
         },
         .string => {
             // TODO: slashify the string
@@ -53,25 +220,67 @@ pub fn pDisplay(args: []Sexpr) EvalError!Sexpr {
 
 pub fn pNewline(args: []Sexpr) EvalError!Sexpr {
     // (newline)
-    _ = args.len;
+    const save_stdout = stdout;
+    defer stdout = save_stdout;
+    const save_stdoutPort = stdoutPort;
+    defer stdoutPort = save_stdoutPort;
+
+    if (args.len == 1) {
+        // (newline <port>)
+        const arg = args[0];
+        if (!isOutputPort(arg))
+            return EvalError.ExpectedOutputPort;
+        const port = portsTable.items[arg >> TagShift];
+        stdout = port.writer;
+    }
+
     print("\n", .{});
     return sxVoid;
 }
 
 pub fn pWrite(args: []Sexpr) EvalError!Sexpr {
     // (write <exp>)
+    const save_stdout = stdout;
+    defer stdout = save_stdout;
+    const save_stdoutPort = stdoutPort;
+    defer stdoutPort = save_stdoutPort;
+
+    if (args.len == 2) {
+        // (write <exp> <port>)
+        const arg = args[1];
+        if (!isOutputPort(arg))
+            return EvalError.ExpectedOutputPort;
+        const port = portsTable.items[arg >> TagShift];
+        stdout = port.writer;
+    }
+
     printSexpr(args[0], true);
     return sxVoid;
 }
 
 pub fn pWriteChar(args: []Sexpr) EvalError!Sexpr {
     // (write-char <exp>)
+    const save_stdout = stdout;
+    defer stdout = save_stdout;
+    const save_stdoutPort = stdoutPort;
+    defer stdoutPort = save_stdoutPort;
+
+    if (args.len == 2) {
+        // (write-char <exp> <port>)
+        const arg = args[1];
+        if (!isOutputPort(arg))
+            return EvalError.ExpectedOutputPort;
+        const port = portsTable.items[arg >> TagShift];
+        stdout = port.writer;
+    }
+
     // For now, just ASCII characters
     const arg = args[0];
     const tag = @intToEnum(PtrTag, arg & TagMask);
     const exp = @truncate(u8, arg >> TagShift);
     if (tag != .char)
         return EvalError.ExpectedCharacter;
+    
     print("{c}", .{exp});
     return sxVoid;
 }
@@ -93,12 +302,14 @@ fn isUnit(num: Sexpr) i64 {
         .small_int, .integer => {
             int = getAsInt(num);
         },
-        else => { int = 0; },
+        else => {
+            int = 0;
+        },
     }
     return if (int == -1 or int == 1) int else 0;
 }
 
-/// Examines the real and imaginary parts of a complex number 
+/// Examines the real and imaginary parts of a complex number
 /// and returns a series of bit flags that determine how the
 /// number should be printed.
 fn complexPrintFlags(re: Sexpr, im: Sexpr) u32 {
@@ -155,7 +366,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
         .rational => {
             const num = getAsInt(cel.cellArray[exp].rat.num);
             const den = getAsInt(cel.cellArray[exp].rat.den);
-            print("{d}/{d}", .{num,den});
+            print("{d}/{d}", .{ num, den });
         },
         .float => {
             const val = cel.cellArray[exp].flt;
@@ -186,7 +397,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
             }
         },
         .boolean => {
-            print("#{s}", .{ if (exp == 0) "f" else "t" });
+            print("#{s}", .{if (exp == 0) "f" else "t"});
         },
         .char => {
             const code = @truncate(u8, exp);
@@ -244,6 +455,9 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
             }
             print(")", .{});
         },
+        .port => {
+            print("#<port>", .{});
+        },
     }
 }
 
@@ -261,4 +475,3 @@ pub fn printList(sexpr: Sexpr) void {
         printSexpr(sexpr, false);
     }
 }
-

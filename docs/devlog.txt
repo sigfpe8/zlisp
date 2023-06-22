@@ -1,4 +1,11 @@
-2023-96-20 - Arithmetic primitives for rational and complex numbers
+2023-06-20 - Initial support for I/O ports
+             I have implemented the port datatype and some output primitives
+             but the input side is still missing. I'm still investigating
+             Readers/Writers in Zig and how to best mix input from files and
+             a console. Besides, the input side has to be integrated with the
+             Lexer.
+
+2023-06-20 - Arithmetic primitives for rational and complex numbers
              Adapted the basic arithmetic primitives (+ - * / < <= = > >=) to
              rational, polar and complex numbers. Since each component of
              a polar/complex number can be any of 3 types (integer, float or

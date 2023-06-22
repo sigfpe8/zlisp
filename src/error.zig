@@ -2,7 +2,7 @@ const std = @import("std");
 const print = std.debug.print;
 const expect = std.testing.expect;
 
-pub const ReadError = error {
+pub const ReadError = error{
     StreamTooLong,
     AccessDenied,
     BrokenPipe,
@@ -36,7 +36,6 @@ pub const TokenError = error{
     InvalidBase16Number,
     InvalidMatissaWidth,
     ExpectedExponent,
-
 };
 
 pub const EvalError = error{
@@ -55,6 +54,8 @@ pub const EvalError = error{
     ExpectedCharacter,
     ExpectedString,
     ExpectedProcedure,
+    ExpectedInputPort,
+    ExpectedOutputPort,
     DefineFailed,
     PrintError,
     WrongNumberOfArguments,
@@ -73,6 +74,7 @@ pub const EvalError = error{
     InvalidUnicodeValue,
     InvalidReference,
     InvalidDenominator,
+    OpenOutputFileFailed,
 };
 
 pub const SchemeError = ReadError || TokenError || ParsingError || EvalError;
@@ -85,6 +87,6 @@ test "error sets" {
 
     var err: u16 = 1;
     while (err < 100) : (err += 1) {
-        print("{d}  {!}\n", .{err, @intToError(err)});
+        print("{d}  {!}\n", .{ err, @intToError(err) });
     }
 }

@@ -1,12 +1,14 @@
-const std  = @import("std");
+const std = @import("std");
 const cell = @import("cell.zig");
 const evl = @import("eval.zig");
+const iop = @import("inpout.zig");
 const pro = @import("procedure.zig");
-const vec  = @import("vector.zig");
+const vec = @import("vector.zig");
 
 const Cell = cell.Cell;
 const Environ = evl.Environ;
 const VectorId = vec.VectorId;
+const PortId = iop.PortId;
 const EvalError = @import("error.zig").EvalError;
 const isZeroReal = @import("number.zig").isZeroReal;
 
@@ -45,8 +47,7 @@ pub const sxNullVec = makeTaggedPtr(0, .vector);
 pub const sxEnd = makeTaggedPtr(@enumToInt(SpecialTag.end), .special);
 pub const sxUndef = makeTaggedPtr(@enumToInt(SpecialTag.undef), .special);
 pub const sxVoid = makeTaggedPtr(@enumToInt(SpecialTag.tvoid), .special);
-pub const nil = makeTaggedPtr(0, .pair);            // == 0 a.k.a. '()
-
+pub const nil = makeTaggedPtr(0, .pair); // == 0 a.k.a. '()
 
 pub const PtrTag = enum { pair,         // (a . b)
                           small_int,    // 28-bit signed integers (i28)
@@ -62,7 +63,9 @@ pub const PtrTag = enum { pair,         // (a . b)
                           vector,       // #(1 2 3...)
                           primitive,    // car, cdr, list, etc
                           procedure,    // lambda
-                          special };    // special forms and helper types
+                          port,         // I/O port
+                          special,      // special forms and helper types
+};
 
 pub const SpecialTag = enum { form, tvoid, undef, end };
 pub const SpecialTagMask = 0x7;
@@ -108,7 +111,7 @@ pub fn makeRational(num: i64, den: i64) !Sexpr {
         return makeInteger(0);
     if (den == 1)
         return makeInteger(num);
-    
+
     // Try to reduce to lowest terms (-2/4 --> -1/2)
     var rnum = num;
     var rden = den;
@@ -142,27 +145,27 @@ pub fn makeVector(tvec: []Sexpr) !Sexpr {
     if (len == 0)
         return sxNullVec;
     const id = try vec.alloc(len);
-    std.mem.copy(Sexpr, vec.vecArray[id+1..id+1+len], tvec[0..len]);
+    std.mem.copy(Sexpr, vec.vecArray[id + 1 .. id + 1 + len], tvec[0..len]);
     return makeTaggedPtr(id, .vector);
 }
 
 pub fn makeProc(env: *Environ, formals: Sexpr, body: Sexpr) !Sexpr {
     const pid = try pro.Proc.alloc();
     const ptr = &pro.procArray[pid];
-    ptr.env     = env;
+    ptr.env = env;
     ptr.formals = formals;
-    ptr.body    = body;
+    ptr.body = body;
     return makeTaggedPtr(pid, .procedure);
 }
 
 pub fn makeChar(code: i64) Sexpr {
     const val = @truncate(UntaggedInt, code);
-    return makeTaggedPtr(@bitCast(UntaggedPtr, val), .char);  
+    return makeTaggedPtr(@bitCast(UntaggedPtr, val), .char);
 }
 
 pub fn makePolar(mag: Sexpr, ang: Sexpr) !Sexpr {
     if (isZeroReal(mag))
-        return makeInteger(0);  // Convert 0@ang to 0
+        return makeInteger(0); // Convert 0@ang to 0
 
     const ptr = try Cell.alloc();
     cell.cellArray[ptr].pol.mag = mag;
@@ -172,10 +175,14 @@ pub fn makePolar(mag: Sexpr, ang: Sexpr) !Sexpr {
 
 pub fn makeComplex(re: Sexpr, im: Sexpr) !Sexpr {
     if (isZeroReal(re) and isZeroReal(im))
-        return makeInteger(0);  // Convert 0+0i to 0
+        return makeInteger(0); // Convert 0+0i to 0
 
     const ptr = try Cell.alloc();
     cell.cellArray[ptr].cmp.re = re;
     cell.cellArray[ptr].cmp.im = im;
     return makeTaggedPtr(ptr, .complex);
+}
+
+pub fn makePort(id: PortId) Sexpr {
+    return makeTaggedPtr(@bitCast(UntaggedPtr, id), .port);
 }

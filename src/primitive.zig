@@ -2,7 +2,7 @@ const std = @import("std");
 const sexp = @import("sexpr.zig");
 const eval = @import("eval.zig");
 const cell = @import("cell.zig");
-const inp = @import("inpout.zig");
+const iop = @import("inpout.zig");
 const nbr = @import("number.zig");
 const str = @import("string.zig");
 const sym = @import("symbol.zig");
@@ -28,10 +28,17 @@ const makePolar = sexp.makePolar;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const unlimited = std.math.maxInt(u32);
 
-const pDisplay = inp.pDisplay;
-const pNewline = inp.pNewline;
-const pWrite = inp.pWrite;
-const pWriteChar = inp.pWriteChar;
+const pCloseInputPort = iop.pCloseInputPort;
+const pCloseOutputPort = iop.pCloseOutputPort;
+const pCurrentInputPort = iop.pCurrentInputPort;
+const pCurrentOutputPort = iop.pCurrentOutputPort;
+const pDisplay = iop.pDisplay;
+const pInputPortPred = iop.pInputPortPred;
+const pNewline = iop.pNewline;
+const pOpenOutputFile = iop.pOpenOutputFile;
+const pOutputPortPred = iop.pOutputPortPred;
+const pWrite = iop.pWrite;
+const pWriteChar = iop.pWriteChar;
 
 const getAsInt = nbr.getAsInt;
 const getAsFloat = nbr.getAsFloat;
@@ -73,48 +80,55 @@ const FunDisp = struct {
 };
 
 const PrimitTable = [_]FunDisp{
-    .{ .name = "boolean?",         .func = pBoolPred,        .min = 1, .max = 1, },
-    .{ .name = "car",              .func = pCar,             .min = 1, .max = 1, },
-    .{ .name = "cdr",              .func = pCdr,             .min = 1, .max = 1, },
-    .{ .name = "char?",            .func = pCharPred,        .min = 1, .max = 1, },
-    .{ .name = "char->integer",    .func = pCharToInt,       .min = 1, .max = 1, },
-    .{ .name = "complex?",         .func = pComplexPred,     .min = 1, .max = 1, },
-    .{ .name = "cons",             .func = pCons,            .min = 2, .max = 2, },
-    .{ .name = "display",          .func = pDisplay,         .min = 1, .max = 1, },
-    .{ .name = "exact?",           .func = pExactPred,       .min = 1, .max = 1, },
-    .{ .name = "inexact?",         .func = pInexactPred,     .min = 1, .max = 1, },
-    .{ .name = "integer?",         .func = pIntPred,         .min = 1, .max = 1, },
-    .{ .name = "integer->char",    .func = pIntToChar,       .min = 1, .max = 1, },
-    .{ .name = "length",           .func = pLength,          .min = 1, .max = 1, },
-    .{ .name = "list",             .func = pList,            .min = 0, .max = unlimited, },
-    .{ .name = "list?",            .func = pListPred,        .min = 1, .max = 1, },
-    .{ .name = "make-polar",       .func = pMakePolar,       .min = 2, .max = 2, },
-    .{ .name = "make-rectangular", .func = pMakeRectangular, .min = 2, .max = 2, },
-    .{ .name = "newline",          .func = pNewline,         .min = 0, .max = 0, },
-    .{ .name = "null?",            .func = pNullPred,        .min = 1, .max = 1, },
-    .{ .name = "number?",          .func = pNumPred,         .min = 1, .max = 1, },
-    .{ .name = "pair?",            .func = pPairPred,        .min = 1, .max = 1, },
-    .{ .name = "procedure?",       .func = pProcPred,        .min = 1, .max = 1, },
-    .{ .name = "rational?",        .func = pRatPred,         .min = 1, .max = 1, },
-    .{ .name = "real?",            .func = pRealPred,        .min = 1, .max = 1, },
-    .{ .name = "reverse",          .func = pReverse,         .min = 1, .max = 1, },
-    .{ .name = "string?",          .func = pStrPred,         .min = 1, .max = 1, },
-    .{ .name = "string-length",    .func = pStrLen,          .min = 1, .max = 1, },
-    .{ .name = "string-ref",       .func = pStrRef,          .min = 2, .max = 2, },
-    .{ .name = "symbol?",          .func = pSymbPred,        .min = 1, .max = 1, },
-    .{ .name = "vector?",          .func = pVecPred,         .min = 1, .max = 1, },
-    .{ .name = "write",            .func = pWrite,           .min = 1, .max = 1, },
-    .{ .name = "write-char",       .func = pWriteChar,       .min = 1, .max = 1, },
-    .{ .name = "zero?",            .func = pZeroPred,        .min = 1, .max = 1, },
-    .{ .name = "+",                .func = pPlus,            .min = 0, .max = unlimited, },
-    .{ .name = "-",                .func = pMinus,           .min = 1, .max = unlimited, },
-    .{ .name = "*",                .func = pTimes,           .min = 0, .max = unlimited, },
-    .{ .name = "/",                .func = pDiv,             .min = 1, .max = unlimited, },
-    .{ .name = "<",                .func = pLess,            .min = 1, .max = unlimited, },
-    .{ .name = "<=",               .func = pLessEq,          .min = 1, .max = unlimited, },
-    .{ .name = "=",                .func = pEqual,           .min = 1, .max = unlimited, },
-    .{ .name = ">",                .func = pGrt,             .min = 1, .max = unlimited, },
-    .{ .name = ">=",               .func = pGrtEq,           .min = 1, .max = unlimited, },
+    .{ .name = "boolean?",            .func = pBoolPred,          .min = 1, .max = 1, },
+    .{ .name = "car",                 .func = pCar,               .min = 1, .max = 1, },
+    .{ .name = "cdr",                 .func = pCdr,               .min = 1, .max = 1, },
+    .{ .name = "char?",               .func = pCharPred,          .min = 1, .max = 1, },
+    .{ .name = "char->integer",       .func = pCharToInt,         .min = 1, .max = 1, },
+    .{ .name = "complex?",            .func = pComplexPred,       .min = 1, .max = 1, },
+    .{ .name = "cons",                .func = pCons,              .min = 2, .max = 2, },
+    .{ .name = "close-input-port",    .func = pCloseInputPort,    .min = 1, .max = 1, },
+    .{ .name = "close-output-port",   .func = pCloseOutputPort,   .min = 1, .max = 1, },
+    .{ .name = "current-input-port",  .func = pCurrentInputPort,  .min = 0, .max = 0, },
+    .{ .name = "current-output-port", .func = pCurrentOutputPort, .min = 0, .max = 0, },
+    .{ .name = "display",             .func = pDisplay,           .min = 1, .max = 2, },
+    .{ .name = "exact?",              .func = pExactPred,         .min = 1, .max = 1, },
+    .{ .name = "inexact?",            .func = pInexactPred,       .min = 1, .max = 1, },
+    .{ .name = "input-port?",         .func = pInputPortPred,     .min = 1, .max = 1, },
+    .{ .name = "integer?",            .func = pIntPred,           .min = 1, .max = 1, },
+    .{ .name = "integer->char",       .func = pIntToChar,         .min = 1, .max = 1, },
+    .{ .name = "length",              .func = pLength,            .min = 1, .max = 1, },
+    .{ .name = "list",                .func = pList,              .min = 0, .max = unlimited, },
+    .{ .name = "list?",               .func = pListPred,          .min = 1, .max = 1, },
+    .{ .name = "make-polar",          .func = pMakePolar,         .min = 2, .max = 2, },
+    .{ .name = "make-rectangular",    .func = pMakeRectangular,   .min = 2, .max = 2, },
+    .{ .name = "newline",             .func = pNewline,           .min = 0, .max = 1, },
+    .{ .name = "null?",               .func = pNullPred,          .min = 1, .max = 1, },
+    .{ .name = "number?",             .func = pNumPred,           .min = 1, .max = 1, },
+    .{ .name = "open-output-file",    .func = pOpenOutputFile,    .min = 1, .max = 1, },
+    .{ .name = "output-port?",        .func = pOutputPortPred,    .min = 1, .max = 1, },
+    .{ .name = "pair?",               .func = pPairPred,          .min = 1, .max = 1, },
+    .{ .name = "procedure?",          .func = pProcPred,          .min = 1, .max = 1, },
+    .{ .name = "rational?",           .func = pRatPred,           .min = 1, .max = 1, },
+    .{ .name = "real?",               .func = pRealPred,          .min = 1, .max = 1, },
+    .{ .name = "reverse",             .func = pReverse,           .min = 1, .max = 1, },
+    .{ .name = "string?",             .func = pStrPred,           .min = 1, .max = 1, },
+    .{ .name = "string-length",       .func = pStrLen,            .min = 1, .max = 1, },
+    .{ .name = "string-ref",          .func = pStrRef,            .min = 2, .max = 2, },
+    .{ .name = "symbol?",             .func = pSymbPred,          .min = 1, .max = 1, },
+    .{ .name = "vector?",             .func = pVecPred,           .min = 1, .max = 1, },
+    .{ .name = "write",               .func = pWrite,             .min = 1, .max = 2, },
+    .{ .name = "write-char",          .func = pWriteChar,         .min = 1, .max = 2, },
+    .{ .name = "zero?",               .func = pZeroPred,          .min = 1, .max = 1, },
+    .{ .name = "+",                   .func = pPlus,              .min = 0, .max = unlimited, },
+    .{ .name = "-",                   .func = pMinus,             .min = 1, .max = unlimited, },
+    .{ .name = "*",                   .func = pTimes,             .min = 0, .max = unlimited, },
+    .{ .name = "/",                   .func = pDiv,               .min = 1, .max = unlimited, },
+    .{ .name = "<",                   .func = pLess,              .min = 1, .max = unlimited, },
+    .{ .name = "<=",                  .func = pLessEq,            .min = 1, .max = unlimited, },
+    .{ .name = "=",                   .func = pEqual,             .min = 1, .max = unlimited, },
+    .{ .name = ">",                   .func = pGrt,               .min = 1, .max = unlimited, },
+    .{ .name = ">=",                  .func = pGrtEq,             .min = 1, .max = unlimited, },
 };
 
 pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
@@ -122,18 +136,15 @@ pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
     const pt: *const FunDisp = &PrimitTable[pid];
 
     if (pt.min == pt.max and pt.min != nargs) {
-        print("'{s}' expected {d} argument{s}, got {d}\n",
-            .{ pt.name, pt.min, if (pt.min == 1) "" else "s", nargs });
+        print("'{s}' expected {d} argument{s}, got {d}\n", .{ pt.name, pt.min, if (pt.min == 1) "" else "s", nargs });
         return EvalError.WrongNumberOfArguments;
     }
     if (nargs < pt.min) {
-        print("'{s}' expected at least {d} argument{s}, got {d}\n",
-            .{ pt.name, pt.min, if (pt.min == 1) "" else "s", nargs });
+        print("'{s}' expected at least {d} argument{s}, got {d}\n", .{ pt.name, pt.min, if (pt.min == 1) "" else "s", nargs });
         return EvalError.WrongNumberOfArguments;
     }
     if (nargs > pt.max) {
-        print("'{s}' expected at most {d} argument{s}, got {d}\n",
-            .{ pt.name, pt.max, if (pt.max == 1) "" else "s", nargs });
+        print("'{s}' expected at most {d} argument{s}, got {d}\n", .{ pt.name, pt.max, if (pt.max == 1) "" else "s", nargs });
         return EvalError.WrongNumberOfArguments;
     }
 
@@ -162,7 +173,6 @@ fn pBoolPred(args: []Sexpr) EvalError!Sexpr {
     return if (tag == .boolean) sxTrue else sxFalse;
 }
 
-
 // -- Characters ------------------------------------------
 fn pCharPred(args: []Sexpr) EvalError!Sexpr {
     // (char? <exp>)
@@ -189,7 +199,6 @@ fn pIntToChar(args: []Sexpr) EvalError!Sexpr {
         return EvalError.InvalidUnicodeValue;
     return makeChar(code);
 }
-
 
 // -- Lists ------------------------------------------------
 fn pListPred(args: []Sexpr) EvalError!Sexpr {
@@ -262,7 +271,7 @@ fn pList(args: []Sexpr) EvalError!Sexpr {
     var i = args.len;
 
     while (i > 0) : (i -= 1) {
-        list = try makePair(args[i-1], list);
+        list = try makePair(args[i - 1], list);
     }
 
     return list;
@@ -284,14 +293,12 @@ fn pReverse(args: []Sexpr) EvalError!Sexpr {
     return list;
 }
 
-
 // -- Procedures ------------------------------------------
 fn pProcPred(args: []Sexpr) EvalError!Sexpr {
     // (procedure? <exp>)
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .procedure or tag == .primitive) sxTrue else sxFalse;
 }
-
 
 // -- Strings ---------------------------------------------
 fn pStrPred(args: []Sexpr) EvalError!Sexpr {
@@ -333,7 +340,6 @@ fn pSymbPred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .symbol) sxTrue else sxFalse;
 }
-
 
 // -- Vectors ---------------------------------------------
 fn pVecPred(args: []Sexpr) EvalError!Sexpr {

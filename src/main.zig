@@ -40,7 +40,10 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    try stdout.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
+    try out.init();
+    defer out.deinit();
+
+    out.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
 
     try Cell.init(8192);
     defer Cell.deinit();
@@ -62,7 +65,7 @@ pub fn main() !void {
     while (i < args.len) : (i += 1) {
         const path = args[i];
         const file = std.fs.cwd().openFile(path, .{}) catch |err| {
-            stdout.print("Could not open file \"{s}\", error: {any}.\n", .{ path, err }) catch {};
+            out.print("Could not open file \"{s}\", error: {any}.\n", .{ path, err });
             continue;
         };
         defer file.close();
@@ -72,7 +75,7 @@ pub fn main() !void {
         var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .nextLine = nextFileLine, .silent = true, };
         while (!lexer.eof) {
             repl(&lexer) catch |err| {
-                try stdout.print("main file:  {!}\n", .{err});
+                out.print("main file:  {!}\n", .{err});
             };
             lexer.inexpr = false;
             lexer.cpos = lexer.line.len; // Force new line
@@ -83,7 +86,7 @@ pub fn main() !void {
 
     while (!lexer.eof) {
         repl(&lexer) catch |err| {
-            try stdout.print("main stdin:  {!}\n", .{err});
+            out.print("main stdin:  {!}\n", .{err});
         };
         lexer.inexpr = false;
         lexer.cpos = lexer.line.len; // Force new line
@@ -113,11 +116,11 @@ fn repl(lexer: *Lexer) !void {
 
         if (!lexer.silent) {
             out.printSexpr(sexpr, true);
-            try stdout.print("\n", .{});
+            out.print("\n", .{});
         }
     }
     if (!lexer.silent)
-        try stdout.print("\n", .{});
+        out.print("\n", .{});
 }
 
 fn nextFileLine(lexer: *Lexer) ReadError!?[]const u8 {
@@ -138,23 +141,11 @@ fn nextStdinLine(lexer: *Lexer) ReadError!?[]const u8 {
 
 fn nextLine(reader: anytype, buffer: []u8) ReadError!?[]const u8 {
     var line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
-               orelse return null;
+                orelse return null;
     // Trim annoying windows-only carriage return character
     if (@import("builtin").os.tag == .windows) {
         return std.mem.trimRight(u8, line, "\r");
     } else {
         return line;
     }
-}
-
-const expect = @import("std").testing.expect;
-test "sizeof" {
-    try stdout.print("\nsizeOf([]u8)={d}\n", .{@sizeOf([]u8)});
-    try stdout.print("sizeOf([*]u8)={d}\n", .{@sizeOf([*]u8)});
-    try stdout.print("sizeOf(?i64)={d}\n", .{@sizeOf(?i64)});
-    try stdout.print("sizeOf(?*i64)={d}\n", .{@sizeOf(?*i64)});
-    var optional_var: ?i32 = null;
-    try expect(optional_var == null);
-    optional_var = 123;
-    try expect(optional_var == @as(i32,123));
 }

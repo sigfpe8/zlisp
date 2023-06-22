@@ -113,7 +113,7 @@ pub fn isInteger(num: Sexpr) bool {
                        else
                             false;
         },
-        else => unreachable,
+        else => false,
    };
 }
 
