@@ -1,6 +1,7 @@
 const std = @import("std");
 const chr = @import("char.zig");
 const erz = @import("error.zig");
+const out = @import("inpout.zig");
 const nbr = @import("number.zig");
 const sxp = @import("sexpr.zig");
 const sym = @import("symbol.zig");
@@ -22,7 +23,6 @@ const makeRational = sxp.makeRational;
 const makeReal = nbr.makeReal;
 
 const mem = std.mem;
-const print = std.debug.print;
 const Sexpr = sxp.Sexpr;
 
 var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -169,7 +169,7 @@ pub fn makeNumber(num: Number) !Sexpr {
 pub const Lexer = struct {
     eof: bool = false,      // At eof?
     inexpr: bool = false,   // Inside an expression?
-    silent: bool = false,   // If true, don't print anything
+    isterm: bool = true,    // True if interactive terminal
     lnum: usize = 1,        // Current line number
     cpos: usize = 0,        // Current character index
     begin: usize = 0,       // Index of token beginning
@@ -182,7 +182,7 @@ pub const Lexer = struct {
     svalue: []const u8 = undefined, // Value of string/symbol token
     line: []const u8 = undefined,   // Current source line
     buffer: []u8 = undefined,       // Line buffer
-    nextLine: *const fn(lexer: *Lexer) ReadError!?[]const u8,
+    reader: std.fs.File.Reader = undefined,
 
     const Self = @This();
 
@@ -204,7 +204,7 @@ pub const Lexer = struct {
         while (self.cpos >= self.line.len) {
             self.cpos = 0;
             self.cchar = 0;
-            self.line = try self.nextLine(self)
+            self.line = try self.nextLine()
                         orelse {    // EOF
                             self.eof = true;
                             return;
@@ -298,6 +298,29 @@ pub const Lexer = struct {
             return true;
         }
         return false;
+    }
+
+    fn nextLine(self: *Lexer) ReadError!?[]const u8 {
+        // Print prompt if this is an interactive session
+        if (self.isterm) {
+            if (self.inexpr) {
+                out.print("    ", .{});
+            } else
+                out.print("> ", .{});
+        }
+
+        const buffer = self.buffer;
+        const reader = self.reader;
+
+        var line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
+                    orelse return null;
+
+        // Trim annoying windows-only carriage return character
+        if (@import("builtin").os.tag == .windows) {
+            return std.mem.trimRight(u8, line, "\r");
+        } else {
+            return line;
+        }
     }
 
     fn isNumberStart(self: *Lexer, ch: u8) bool {
@@ -680,21 +703,21 @@ pub const Lexer = struct {
     }
 
     pub fn logError(self: *Lexer, err: anyerror) void {
-        if (!self.silent) {
-            print("\nSyntax error: {!}\n{s}\n", .{ err, self.line[0..] });
+        if (self.isterm) {
+            out.print("\nSyntax error: {!}\n{s}\n", .{ err, self.line[0..] });
             var i: usize = 0;
             while (i < self.begin) : (i += 1) {
                 if (self.line[i] != '\t') {
-                    print(" ", .{});
+                    out.print(" ", .{});
                 } else {
-                    print("\t", .{});
+                    out.print("\t", .{});
                 }
             }
             i += 1;
             while (i < self.cpos) : (i += 1) {
-                print("~", .{});
+                out.print("~", .{});
             }
-            print("\n", .{});
+            out.print("\n", .{});
         }
     }
 };

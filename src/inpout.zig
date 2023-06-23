@@ -86,20 +86,21 @@ pub fn deinit() void {
 }
 
 pub fn newReader(reader: Reader) !PortId {
-    const id = @truncate(PortId, portsTable.items.len);
+    const pid = @truncate(PortId, portsTable.items.len);
     try portsTable.append(.{ .reader = reader });
-    return id;
+    return pid;
 }
 
 pub fn newWriter(writer: Writer) !PortId {
-    const id = @truncate(PortId, portsTable.items.len);
+    const pid = @truncate(PortId, portsTable.items.len);
     try portsTable.append(.{ .writer = writer });
-    return id;
+    return pid;
 }
 
 pub fn print(comptime format: []const u8, args: anytype) void {
     stdout.print(format, args) catch |err| {
-        std.debug.print("Error {any} writing to stdout.\n", .{err});
+        std.debug.print("Error {any} writing to stdout:\n", .{err});
+        std.debug.print(format, args);
     };
 }
 

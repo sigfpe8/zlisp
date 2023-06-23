@@ -72,7 +72,9 @@ pub fn main() !void {
 
         filein = std.fs.File.reader(file);
 
-        var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .nextLine = nextFileLine, .silent = true, };
+        var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .isterm = false, };
+        lexer.reader = filein;
+
         while (!lexer.eof) {
             repl(&lexer) catch |err| {
                 out.print("main file:  {!}\n", .{err});
@@ -82,7 +84,8 @@ pub fn main() !void {
         }
     }
 
-    var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .nextLine = nextStdinLine, };
+    var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .isterm = true, };
+    lexer.reader = std.io.getStdIn().reader();
 
     while (!lexer.eof) {
         repl(&lexer) catch |err| {
@@ -114,38 +117,12 @@ fn repl(lexer: *Lexer) !void {
             return;
         };
 
-        if (!lexer.silent) {
+        if (lexer.isterm) {
             out.printSexpr(sexpr, true);
             out.print("\n", .{});
         }
     }
-    if (!lexer.silent)
+    if (lexer.isterm)
         out.print("\n", .{});
 }
 
-fn nextFileLine(lexer: *Lexer) ReadError!?[]const u8 {
-    const buffer = lexer.buffer;
-    const line = nextLine(filein, buffer);
-    return line;
-}
-
-fn nextStdinLine(lexer: *Lexer) ReadError!?[]const u8 {
-    if (lexer.inexpr) {
-        std.debug.print("    ", .{});
-    } else
-        std.debug.print("> ", .{});
-    const buffer = lexer.buffer;
-    const line = nextLine(stdin, buffer);
-    return line;
-}
-
-fn nextLine(reader: anytype, buffer: []u8) ReadError!?[]const u8 {
-    var line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
-                orelse return null;
-    // Trim annoying windows-only carriage return character
-    if (@import("builtin").os.tag == .windows) {
-        return std.mem.trimRight(u8, line, "\r");
-    } else {
-        return line;
-    }
-}
