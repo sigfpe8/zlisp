@@ -4,6 +4,7 @@ const Lexer = lex.Lexer;
 const cell = @import("cell.zig");
 const Cell = cell.Cell;
 const erz = @import("error.zig");
+const out = @import("inpout.zig");
 const sexp = @import("sexpr.zig");
 const eval = @import("eval.zig");
 const vec = @import("vector.zig");
@@ -29,6 +30,50 @@ const ParsingError = erz.ParsingError;
 const SchemeError = erz.SchemeError;
 
 const MAXVECSIZE = vec.MAXVECSIZE;
+
+/// Parse all expressions in current input file until eof
+pub fn parseFile(lexer: *Lexer) void {
+    while (!lexer.eof) {
+        parseLine(lexer) catch |err| {
+            lexer.logError(err);
+        };
+        lexer.inexpr = false;
+        lexer.cpos = lexer.line.len; // Force new line
+    }
+}
+
+/// Parse current input line.
+/// If the current expression continues on the following
+/// lines, read as many lines as necessary to complete it.
+pub fn parseLine(lexer: *Lexer) !void {
+    try lexer.nextTokenChar();
+    while (true) {
+        lexer.nextToken() catch |err| {
+            lexer.logError(err);
+            return;
+        };
+        lexer.inexpr = true;
+        var sexpr = parseSexpr(lexer) catch |err| {
+            lexer.logError(err);
+            return;
+        };
+        lexer.inexpr = false;
+        if (lexer.eof or sexpr == sxEnd)
+            break;
+
+        sexpr = eval.globalEnv.eval(sexpr) catch |err| {
+            eval.logError(err);
+            return;
+        };
+
+        if (lexer.isterm) {
+            out.printSexpr(sexpr, true);
+            out.print("\n", .{});
+        }
+    }
+    if (lexer.isterm)
+        out.print("\n", .{});
+}
 
 /// Parse one S-expression
 /// Return tagged pointer to its internal form

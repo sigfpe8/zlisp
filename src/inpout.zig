@@ -45,7 +45,6 @@ pub const Writer = std.fs.File.Writer;
 
 const InputPort = struct {
     lexer: *Lexer,
-    name: []const u8,
 };
 
 const OutputPort = struct {

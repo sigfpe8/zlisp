@@ -1,3 +1,6 @@
+2023-06-23 - Improvements to Lexer API
+             This is work necessary to integrate the Lexer with input ports.
+
 2023-06-20 - Initial support for I/O ports
              I have implemented the port datatype and some output primitives
              but the input side is still missing. I'm still investigating

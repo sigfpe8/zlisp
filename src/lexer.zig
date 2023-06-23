@@ -145,6 +145,12 @@ fn getSign(real: Real) i64 {
     return 0;
 }
 
+fn strDup(src: []const u8) ![]u8 {
+    const dst = try allocator.alloc(u8, src.len);
+    mem.copy(u8, dst[0..], src[0..]);
+    return dst;
+}
+
 pub fn makeNumber(num: Number) !Sexpr {
     var sexpr: Sexpr = undefined;
     switch (num) {
@@ -180,11 +186,65 @@ pub const Lexer = struct {
     token: Token = .end,    // Current token type
     number: Number = undefined,     // Value of number token
     svalue: []const u8 = undefined, // Value of string/symbol token
+    fname: []const u8 = undefined,  // File name
     line: []const u8 = undefined,   // Current source line
     buffer: []u8 = undefined,       // Line buffer
+    file: std.fs.File = undefined,  // File
     reader: std.fs.File.Reader = undefined,
 
     const Self = @This();
+    const BUFFER_SIZE = 2048;
+
+    /// Create an instance of Lexer for input from file 'name'
+    /// If 'name' is null this is an interactive terminal
+    pub fn create(name: ?[]const u8) !*Lexer {
+        var file: std.fs.File = undefined;
+        var isterm: bool = undefined;
+
+        // Failing to open a file is quite common, so we try it first.
+        // If the file doesn't exist we avoid having to clean up allocated memory.
+        if (name) |path| {
+            isterm = false; // Reading from a file
+            file = try std.fs.cwd().openFile(path, .{});
+        } else {
+            isterm = true;  // Reading from a terminal
+        }
+        errdefer if (!isterm) file.close();
+
+        var lexer: *Lexer = try allocator.create(Lexer);
+        errdefer allocator.destroy(lexer);
+
+        var buffer = try allocator.alloc(u8, BUFFER_SIZE);
+        errdefer allocator.free(buffer);
+
+        lexer.buffer = buffer;
+        lexer.line = buffer[0..0];
+        lexer.isterm = isterm;
+        lexer.lnum = 0;
+        lexer.cpos = 0;
+
+        if (isterm) {
+            // Console
+            lexer.reader = std.io.getStdIn().reader();
+            lexer.isterm = isterm;
+            lexer.fname = try strDup("console");
+        } else {
+            // File
+            lexer.file = file;
+            lexer.reader = std.fs.File.reader(file);
+            lexer.fname = try strDup(name.?);
+        }
+
+        return lexer;
+    }
+
+    pub fn destroy(self: *Lexer) void {
+        if (!self.isterm)
+            self.file.close();
+        allocator.free(self.buffer);
+        allocator.free(self.fname);
+        allocator.destroy(self);
+    }
 
     /// Advances to next char; stops at eol.
     pub fn nextChar(self: *Lexer) void {
@@ -314,6 +374,7 @@ pub const Lexer = struct {
 
         var line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
                     orelse return null;
+        self.lnum += 1;
 
         // Trim annoying windows-only carriage return character
         if (@import("builtin").os.tag == .windows) {
@@ -703,21 +764,23 @@ pub const Lexer = struct {
     }
 
     pub fn logError(self: *Lexer, err: anyerror) void {
-        if (self.isterm) {
-            out.print("\nSyntax error: {!}\n{s}\n", .{ err, self.line[0..] });
-            var i: usize = 0;
-            while (i < self.begin) : (i += 1) {
-                if (self.line[i] != '\t') {
-                    out.print(" ", .{});
-                } else {
-                    out.print("\t", .{});
-                }
+        out.print("\nSyntax error in {s}:", .{ self.fname });
+        if (!self.isterm)
+            out.print("{d}:", .{self.lnum});
+        out.print(" {!}\n{s}\n", .{ err, self.line[0..] });
+
+        var i: usize = 0;
+        while (i < self.begin) : (i += 1) {
+            if (self.line[i] != '\t') {
+                out.print(" ", .{});
+            } else {
+                out.print("\t", .{});
             }
-            i += 1;
-            while (i < self.cpos) : (i += 1) {
-                out.print("~", .{});
-            }
-            out.print("\n", .{});
         }
+        i += 1;
+        while (i < self.cpos) : (i += 1) {
+            out.print("~", .{});
+        }
+        out.print("\n", .{});
     }
 };

@@ -1,12 +1,9 @@
 const std = @import("std");
 const chr = @import("char.zig");
 const lex = @import("lexer.zig");
-const Lexer = lex.Lexer;
 const parser = @import("parser.zig");
 const cell = @import("cell.zig");
-const Cell = cell.Cell;
 const out = @import("inpout.zig");
-const sym = @import("symbol.zig");
 const prim = @import("primitive.zig");
 const vec = @import("vector.zig");
 const proc = @import("procedure.zig");
@@ -14,23 +11,15 @@ const eval = @import("eval.zig");
 const sexp = @import("sexpr.zig");
 const str = @import("string.zig");
 const spc = @import("special.zig");
-const Proc = proc.Proc;
-const PtrTag = sexp.PtrTag;
-const TagMask = sexp.TagMask;
-const sxEnd = sexp.sxEnd;
 
-const ReadError = @import("error.zig").ReadError;
+const Cell = cell.Cell;
+const Lexer = lex.Lexer;
+const Proc = proc.Proc;
+const sxEnd = sexp.sxEnd;
 
 const ver_major = 0;
 const ver_minor = 1;
 const ver_patch = 0;
-
-const stdout = std.io.getStdOut().writer();
-const stdin_file = std.io.getStdIn();
-var buf_reader = std.io.bufferedReader(stdin_file.reader());
-const stdin = buf_reader.reader();
-
-var filein: std.fs.File.Reader = undefined;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -59,70 +48,22 @@ pub fn main() !void {
     try spc.init();
     try prim.init();
 
-    var buf: [2048]u8 = undefined;
-
+    // Read files passed as arguments
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
-        const path = args[i];
-        const file = std.fs.cwd().openFile(path, .{}) catch |err| {
-            out.print("Could not open file \"{s}\", error: {any}.\n", .{ path, err });
+        const lexer = Lexer.create(args[i]) catch |err| {
+            out.print("Could not open file \"{s}\"; error: {any}.\n", .{ args[i], err });
             continue;
         };
-        defer file.close();
 
-        filein = std.fs.File.reader(file);
-
-        var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .isterm = false, };
-        lexer.reader = filein;
-
-        while (!lexer.eof) {
-            repl(&lexer) catch |err| {
-                out.print("main file:  {!}\n", .{err});
-            };
-            lexer.inexpr = false;
-            lexer.cpos = lexer.line.len; // Force new line
-        }
+        parser.parseFile(lexer);
+        lexer.destroy();
     }
 
-    var lexer = Lexer{ .buffer = &buf, .line = buf[0..0], .isterm = true, };
-    lexer.reader = std.io.getStdIn().reader();
+    // Start REPL
+    const lexer = try Lexer.create(null);
+    defer lexer.destroy();
 
-    while (!lexer.eof) {
-        repl(&lexer) catch |err| {
-            out.print("main stdin:  {!}\n", .{err});
-        };
-        lexer.inexpr = false;
-        lexer.cpos = lexer.line.len; // Force new line
-    }
-}
-
-fn repl(lexer: *Lexer) !void {
-    try lexer.nextTokenChar();
-    while (true) {
-        lexer.nextToken() catch |err| {
-            lexer.logError(err);
-            return;
-        };
-        lexer.inexpr = true;
-        var sexpr = parser.parseSexpr(lexer) catch |err| {
-            lexer.logError(err);
-            return;
-        };
-        lexer.inexpr = false;
-        if (lexer.eof or sexpr == sxEnd)
-            break;
-
-        sexpr = eval.globalEnv.eval(sexpr) catch |err| {
-            eval.logError(err);
-            return;
-        };
-
-        if (lexer.isterm) {
-            out.printSexpr(sexpr, true);
-            out.print("\n", .{});
-        }
-    }
-    if (lexer.isterm)
-        out.print("\n", .{});
+    parser.parseFile(lexer);
 }
 
