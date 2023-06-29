@@ -1,3 +1,15 @@
+2023-06-29 - Unify lexer with input ports
+             The input part is mostly done. There are a few missing primitives
+             like (read-char), (peek-char) and a few others. There is probably
+             room for more Improvements, like unifying Lexer{} with Zig's
+             Reader{} and Printer{} with Writer{} but this will have to wait
+             until I understand these mechanisms better. Another thing that
+             bothers me a little is that a Port, being a tagged union, occupies
+             16 bytes instead of just the 8 bytes of a pointer. Maybe in the
+             future I'll have two separate tables, one for input ports and
+             another for output ports. An even port id would identify, say,
+             an input port and an odd id an output port.
+
 2023-06-23 - Improvements to Lexer API
              This is work necessary to integrate the Lexer with input ports.
 

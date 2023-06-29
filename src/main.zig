@@ -15,7 +15,6 @@ const spc = @import("special.zig");
 const Cell = cell.Cell;
 const Lexer = lex.Lexer;
 const Proc = proc.Proc;
-const sxEnd = sexp.sxEnd;
 
 const ver_major = 0;
 const ver_minor = 1;
@@ -61,8 +60,7 @@ pub fn main() !void {
     }
 
     // Start REPL
-    const lexer = try Lexer.create(null);
-    defer lexer.destroy();
+    const lexer = out.getStdin();
 
     parser.parseFile(lexer);
 }

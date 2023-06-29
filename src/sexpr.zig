@@ -44,7 +44,7 @@ pub const TagShift = 4;
 pub const sxFalse = makeTaggedPtr(0, .boolean);
 pub const sxTrue  = makeTaggedPtr(1, .boolean);
 pub const sxNullVec = makeTaggedPtr(0, .vector);
-pub const sxEnd = makeTaggedPtr(@enumToInt(SpecialTag.end), .special);
+pub const sxEof = makeTaggedPtr(@enumToInt(SpecialTag.eof), .special);
 pub const sxUndef = makeTaggedPtr(@enumToInt(SpecialTag.undef), .special);
 pub const sxVoid = makeTaggedPtr(@enumToInt(SpecialTag.tvoid), .special);
 pub const nil = makeTaggedPtr(0, .pair); // == 0 a.k.a. '()
@@ -67,7 +67,7 @@ pub const PtrTag = enum { pair,         // (a . b)
                           special,      // special forms and helper types
 };
 
-pub const SpecialTag = enum { form, tvoid, undef, end };
+pub const SpecialTag = enum { form, tvoid, undef, eof };
 pub const SpecialTagMask = 0x7;
 pub const SpecialTagShift = 3;
 

@@ -33,10 +33,13 @@ const pCloseOutputPort = iop.pCloseOutputPort;
 const pCurrentInputPort = iop.pCurrentInputPort;
 const pCurrentOutputPort = iop.pCurrentOutputPort;
 const pDisplay = iop.pDisplay;
+const pEofPred = iop.pEofPred;
 const pInputPortPred = iop.pInputPortPred;
 const pNewline = iop.pNewline;
+const pOpenInputFile = iop.pOpenInputFile;
 const pOpenOutputFile = iop.pOpenOutputFile;
 const pOutputPortPred = iop.pOutputPortPred;
+const pRead = iop.pRead;
 const pWrite = iop.pWrite;
 const pWriteChar = iop.pWriteChar;
 
@@ -92,6 +95,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "current-input-port",  .func = pCurrentInputPort,  .min = 0, .max = 0, },
     .{ .name = "current-output-port", .func = pCurrentOutputPort, .min = 0, .max = 0, },
     .{ .name = "display",             .func = pDisplay,           .min = 1, .max = 2, },
+    .{ .name = "eof-object?",         .func = pEofPred,           .min = 1, .max = 1, },
     .{ .name = "exact?",              .func = pExactPred,         .min = 1, .max = 1, },
     .{ .name = "inexact?",            .func = pInexactPred,       .min = 1, .max = 1, },
     .{ .name = "input-port?",         .func = pInputPortPred,     .min = 1, .max = 1, },
@@ -105,11 +109,13 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "newline",             .func = pNewline,           .min = 0, .max = 1, },
     .{ .name = "null?",               .func = pNullPred,          .min = 1, .max = 1, },
     .{ .name = "number?",             .func = pNumPred,           .min = 1, .max = 1, },
+    .{ .name = "open-input-file",     .func = pOpenInputFile,     .min = 1, .max = 1, },
     .{ .name = "open-output-file",    .func = pOpenOutputFile,    .min = 1, .max = 1, },
     .{ .name = "output-port?",        .func = pOutputPortPred,    .min = 1, .max = 1, },
     .{ .name = "pair?",               .func = pPairPred,          .min = 1, .max = 1, },
     .{ .name = "procedure?",          .func = pProcPred,          .min = 1, .max = 1, },
     .{ .name = "rational?",           .func = pRatPred,           .min = 1, .max = 1, },
+    .{ .name = "read",                .func = pRead,              .min = 0, .max = 1, },
     .{ .name = "real?",               .func = pRealPred,          .min = 1, .max = 1, },
     .{ .name = "reverse",             .func = pReverse,           .min = 1, .max = 1, },
     .{ .name = "string?",             .func = pStrPred,           .min = 1, .max = 1, },

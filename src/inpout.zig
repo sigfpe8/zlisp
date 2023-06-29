@@ -3,6 +3,8 @@ const cel = @import("cell.zig");
 const chr = @import("char.zig");
 const lex = @import("lexer.zig");
 const nbr = @import("number.zig");
+const par = @import("parser.zig");
+const pri = @import("primitive.zig");
 const spc = @import("special.zig");
 const str = @import("string.zig");
 const sxp = @import("sexpr.zig");
@@ -17,6 +19,7 @@ const PtrTag = sxp.PtrTag;
 const SpecialTag = sxp.SpecialTag;
 const SpecialTagMask = sxp.SpecialTagMask;
 const SpecialTagShift = sxp.SpecialTagShift;
+const sxEof = sxp.sxEof;
 const sxFalse = sxp.sxFalse;
 const sxTrue = sxp.sxTrue;
 const sxVoid = sxp.sxVoid;
@@ -28,7 +31,7 @@ const UntaggedInt = sxp.UntaggedInt;
 const makePort = sxp.makePort;
 
 const EvalError = @import("error.zig").EvalError;
-const getName = @import("primitive.zig").getName;
+// const getName = @import("primitive.zig").getName;
 
 const getAsInt = nbr.getAsInt;
 const getSign = nbr.getSign;
@@ -43,23 +46,51 @@ pub const PortId = u32;
 pub const Reader = std.fs.File.Reader;
 pub const Writer = std.fs.File.Writer;
 
-const InputPort = struct {
-    lexer: *Lexer,
-};
-
-const OutputPort = struct {
+const Printer = struct {
     name: []const u8,
+    file: std.fs.File,
     writer: Writer,
-};
+    isopen: bool,
+    isterm: bool,
 
-const NewPort = union(enum) {
-    inp: InputPort,
-    out: OutputPort,
+    /// Create an instance of Printer{} for output to file 'name'.
+    /// The special names 'stdout' and 'stderr' are assumed to be a console/terminal.
+    pub fn create(name: []const u8) !*Printer {
+        var printer: *Printer = try allocator.create(Printer);
+        errdefer allocator.destroy(printer);
+
+        if (std.mem.eql(u8, name, "stdout")) {
+            printer.isterm = true;
+            printer.writer = std.io.getStdOut().writer();
+        } else if (std.mem.eql(u8, name, "stderr")) {
+            printer.isterm = true;
+            printer.writer = std.io.getStdErr().writer();
+        } else {
+            // Regular file
+            printer.isterm = false;
+            printer.file = try std.fs.cwd().createFile(name, .{});
+            printer.writer = std.fs.File.writer(printer.file);
+        }
+
+        errdefer if (!printer.isterm) printer.file.close();
+
+        printer.name = try lex.strDup(name);
+        printer.isopen = true;
+
+        return printer;
+    }
+
+    pub fn destroy(self: *Printer) void {
+        if (!self.isterm)
+            self.file.close();
+        allocator.free(self.name);
+        allocator.destroy(self);
+    }
 };
 
 pub const Port = union(enum) {
-    reader: Reader,
-    writer: Writer,
+    reader: *Lexer,
+    writer: *Printer,
 };
 
 // This crashes the compiler :(
@@ -68,29 +99,47 @@ var portsTable = std.ArrayList(Port).init(allocator);
 
 var stdin = std.io.getStdIn().reader();   // Reader{}
 var stdout = std.io.getStdOut().writer(); // Writer{}
-var stderr = std.io.getStdOut().writer(); // Writer{}
+var stderr = std.io.getStdErr().writer(); // Writer{}
 
 var stdinPort:  Sexpr = makePort(0);
 var stdoutPort: Sexpr = makePort(1);
 var stderrPort: Sexpr = makePort(2);
 
 pub fn init() !void {
-    try portsTable.append(.{ .reader = stdin  }); // [0]
-    try portsTable.append(.{ .writer = stdout }); // [1]
-    try portsTable.append(.{ .writer = stderr }); // [2]
+    var inpp = try Lexer.create("stdin");
+    var outp = try Printer.create("stdout");
+    var errp = try Printer.create("stderr");
+
+    try portsTable.append(.{ .reader = inpp }); // [0]
+    try portsTable.append(.{ .writer = outp }); // [1]
+    try portsTable.append(.{ .writer = errp }); // [2]
 }
 
 pub fn deinit() void {
     portsTable.deinit();
 }
 
-pub fn newReader(reader: Reader) !PortId {
+pub fn getName(pid: PortId) []const u8 {
+    const port = portsTable.items[pid];
+    switch (port) {
+        .reader => return port.reader.name,
+        .writer => return port.writer.name,
+    }
+}
+
+pub fn getStdin() *Lexer {
+    const lexer: *Lexer = portsTable.items[0].reader;
+    
+    return lexer;
+}
+
+pub fn newInputPort(reader: *Lexer) !PortId {
     const pid = @truncate(PortId, portsTable.items.len);
     try portsTable.append(.{ .reader = reader });
     return pid;
 }
 
-pub fn newWriter(writer: Writer) !PortId {
+pub fn newOutputPort(writer: *Printer) !PortId {
     const pid = @truncate(PortId, portsTable.items.len);
     try portsTable.append(.{ .writer = writer });
     return pid;
@@ -125,13 +174,13 @@ fn isOutputPort(arg: Sexpr) bool {
     }
 }
 
-pub fn pCurrentInputPort(args: []Sexpr) EvalError!Sexpr {
-    _ = args.len;
+pub fn pCurrentInputPort(_: []Sexpr) EvalError!Sexpr {
+    // (current-input-port)
     return stdinPort;
 }
 
-pub fn pCurrentOutputPort(args: []Sexpr) EvalError!Sexpr {
-    _ = args.len;
+pub fn pCurrentOutputPort(_: []Sexpr) EvalError!Sexpr {
+    // (current-input-port)
     return stdoutPort;
 }
 
@@ -154,13 +203,12 @@ pub fn pOpenOutputFile(args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedString;
 
     const path = str.get(exp);
-    const file = std.fs.cwd().createFile(path, .{}) catch |err| {
-        std.debug.print("Could not open file \"{s}\" for output, error: {any}.\n", .{ path, err });
+    const printer = Printer.create(path) catch |err| {
+        std.debug.print("Error opening '{s}' for output: {any}\n", .{path,err});
         return EvalError.OpenOutputFileFailed;
     };
-
-    const id = try newWriter(file.writer());
-    return makePort(id);
+    const pid = try newOutputPort(printer);
+    return makePort(pid);
 }
 
 pub fn pCloseOutputPort(args: []Sexpr) EvalError!Sexpr {
@@ -170,8 +218,27 @@ pub fn pCloseOutputPort(args: []Sexpr) EvalError!Sexpr {
     if (!isOutputPort(arg))
         return EvalError.ExpectedOutputPort;
     const writer = portsTable.items[pid].writer;
-    writer.context.close();
+    if (!writer.isterm)
+        writer.file.close();
+    writer.isopen = false;
     return sxVoid;
+}
+
+pub fn pOpenInputFile(args: []Sexpr) EvalError!Sexpr {
+    // (open-input-file <exp>)
+    const arg = args[0];
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+
+    const path = str.get(exp);
+    const lexer = Lexer.create(path) catch |err| {
+        std.debug.print("Error opening '{s}' for input: {any}\n", .{path,err});
+        return EvalError.OpenInputFileFailed;
+    };
+    const pid = try newInputPort(lexer);
+    return makePort(pid);
 }
 
 pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
@@ -181,8 +248,47 @@ pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
     if (!isInputPort(arg))
         return EvalError.ExpectedInputPort;
     const reader = portsTable.items[pid].reader;
-    reader.context.close();
+    if (!reader.isterm)
+        reader.file.close();
+    reader.isopen = false;
     return sxVoid;
+}
+
+pub fn pRead(args: []Sexpr) EvalError!Sexpr {
+    var lexer: *Lexer = undefined;
+
+    if (args.len == 0) {
+        // (read)
+        lexer = getStdin();
+    } else {
+        // (read <port>)
+        const arg = args[0];
+        if (!isInputPort(arg))
+            return EvalError.ExpectedInputPort;
+        const port = portsTable.items[arg >> TagShift];
+        if (!port.reader.isopen)
+            return EvalError.PortIsClosed;
+        lexer = port.reader;
+    }
+
+    // Advance to next token
+    lexer.nextToken() catch |err| {
+        lexer.logError(err);
+        return sxVoid;
+    };
+
+    // Read one S-expression
+    const sexpr = par.parseSexpr(lexer) catch |err| {
+        lexer.logError(err);
+        return sxVoid;
+    };
+
+    return sexpr;
+}
+
+pub fn pEofPred(args: []Sexpr) EvalError!Sexpr {
+    // (eof-object? <exp>)
+    return if (args[0] == sxEof) sxTrue else sxFalse;
 }
 
 pub fn pDisplay(args: []Sexpr) EvalError!Sexpr {
@@ -198,7 +304,9 @@ pub fn pDisplay(args: []Sexpr) EvalError!Sexpr {
         if (!isOutputPort(arg))
             return EvalError.ExpectedOutputPort;
         const port = portsTable.items[arg >> TagShift];
-        stdout = port.writer;
+        if (!port.writer.isopen)
+            return EvalError.PortIsClosed;
+        stdout = port.writer.writer;
     }
 
     const arg = args[0];
@@ -231,7 +339,9 @@ pub fn pNewline(args: []Sexpr) EvalError!Sexpr {
         if (!isOutputPort(arg))
             return EvalError.ExpectedOutputPort;
         const port = portsTable.items[arg >> TagShift];
-        stdout = port.writer;
+        if (!port.writer.isopen)
+            return EvalError.PortIsClosed;
+        stdout = port.writer.writer;
     }
 
     print("\n", .{});
@@ -251,7 +361,9 @@ pub fn pWrite(args: []Sexpr) EvalError!Sexpr {
         if (!isOutputPort(arg))
             return EvalError.ExpectedOutputPort;
         const port = portsTable.items[arg >> TagShift];
-        stdout = port.writer;
+        if (!port.writer.isopen)
+            return EvalError.PortIsClosed;
+        stdout = port.writer.writer;
     }
 
     printSexpr(args[0], true);
@@ -271,7 +383,9 @@ pub fn pWriteChar(args: []Sexpr) EvalError!Sexpr {
         if (!isOutputPort(arg))
             return EvalError.ExpectedOutputPort;
         const port = portsTable.items[arg >> TagShift];
-        stdout = port.writer;
+        if (!port.writer.isopen)
+            return EvalError.PortIsClosed;
+        stdout = port.writer.writer;
     }
 
     // For now, just ASCII characters
@@ -417,7 +531,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
             print(")", .{});
         },
         .primitive => {
-            print("#<primitive:{s}>", .{getName(exp)});
+            print("#<primitive:{s}>", .{pri.getName(exp)});
         },
         .procedure => {
             print("#<procedure>", .{});
@@ -425,6 +539,8 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
         .special => {
             if (sexpr == sxVoid) {
                 // Don't print void
+            } else if (sexpr == sxEof) {
+                print("#<eof>", .{});
             } else if (@intToEnum(SpecialTag, exp & SpecialTagMask) == .form) {
                 print("#<special-form:{s}>", .{spc.getName(exp >> SpecialTagShift)});
             } else {
@@ -456,7 +572,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
             print(")", .{});
         },
         .port => {
-            print("#<port>", .{});
+            print("#<port: id={d}, name=\"{s}\">", .{exp,getName(exp)});
         },
     }
 }

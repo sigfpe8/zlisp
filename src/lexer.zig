@@ -145,7 +145,7 @@ fn getSign(real: Real) i64 {
     return 0;
 }
 
-fn strDup(src: []const u8) ![]u8 {
+pub fn strDup(src: []const u8) ![]u8 {
     const dst = try allocator.alloc(u8, src.len);
     mem.copy(u8, dst[0..], src[0..]);
     return dst;
@@ -175,8 +175,9 @@ pub fn makeNumber(num: Number) !Sexpr {
 pub const Lexer = struct {
     eof: bool = false,      // At eof?
     inexpr: bool = false,   // Inside an expression?
-    isterm: bool = true,    // True if interactive terminal
-    lnum: usize = 1,        // Current line number
+    isterm: bool = false,   // True if interactive terminal
+    isopen: bool = false,   // True if port is still open
+    lnum: usize = 0,        // Current line number
     cpos: usize = 0,        // Current character index
     begin: usize = 0,       // Index of token beginning
     cchar: u8 = 0,          // Current character
@@ -186,7 +187,7 @@ pub const Lexer = struct {
     token: Token = .end,    // Current token type
     number: Number = undefined,     // Value of number token
     svalue: []const u8 = undefined, // Value of string/symbol token
-    fname: []const u8 = undefined,  // File name
+    name: []const u8 = undefined,   // File name
     line: []const u8 = undefined,   // Current source line
     buffer: []u8 = undefined,       // Line buffer
     file: std.fs.File = undefined,  // File
@@ -195,19 +196,19 @@ pub const Lexer = struct {
     const Self = @This();
     const BUFFER_SIZE = 2048;
 
-    /// Create an instance of Lexer for input from file 'name'
-    /// If 'name' is null this is an interactive terminal
-    pub fn create(name: ?[]const u8) !*Lexer {
+    /// Create an instance of Lexer{} for input from file `name`
+    /// The special name `stdin` is assumed to be a console/terminal.
+    pub fn create(name: []const u8) !*Lexer {
         var file: std.fs.File = undefined;
         var isterm: bool = undefined;
 
         // Failing to open a file is quite common, so we try it first.
         // If the file doesn't exist we avoid having to clean up allocated memory.
-        if (name) |path| {
-            isterm = false; // Reading from a file
-            file = try std.fs.cwd().openFile(path, .{});
+        if (std.mem.eql(u8, name, "stdin")) {
+            isterm = true;  // Reading from an interactive terminal
         } else {
-            isterm = true;  // Reading from a terminal
+            isterm = false; // Reading from a file
+            file = try std.fs.cwd().openFile(name, .{});
         }
         errdefer if (!isterm) file.close();
 
@@ -220,19 +221,20 @@ pub const Lexer = struct {
         lexer.buffer = buffer;
         lexer.line = buffer[0..0];
         lexer.isterm = isterm;
+        lexer.isopen = true;
+        lexer.eof = false;
         lexer.lnum = 0;
         lexer.cpos = 0;
+        lexer.cchar = 0;
+        lexer.name = try strDup(name);
 
         if (isterm) {
             // Console
             lexer.reader = std.io.getStdIn().reader();
-            lexer.isterm = isterm;
-            lexer.fname = try strDup("console");
         } else {
             // File
             lexer.file = file;
             lexer.reader = std.fs.File.reader(file);
-            lexer.fname = try strDup(name.?);
         }
 
         return lexer;
@@ -242,7 +244,7 @@ pub const Lexer = struct {
         if (!self.isterm)
             self.file.close();
         allocator.free(self.buffer);
-        allocator.free(self.fname);
+        allocator.free(self.name);
         allocator.destroy(self);
     }
 
@@ -764,7 +766,7 @@ pub const Lexer = struct {
     }
 
     pub fn logError(self: *Lexer, err: anyerror) void {
-        out.print("\nSyntax error in {s}:", .{ self.fname });
+        out.print("\nSyntax error in {s}:", .{ self.name });
         if (!self.isterm)
             out.print("{d}:", .{self.lnum});
         out.print(" {!}\n{s}\n", .{ err, self.line[0..] });
@@ -782,5 +784,9 @@ pub const Lexer = struct {
             out.print("~", .{});
         }
         out.print("\n", .{});
+
+        // If not interactive terminal, signal EOF
+        if (!self.isterm)
+            self.eof = true;
     }
 };

@@ -75,6 +75,8 @@ pub const EvalError = error{
     InvalidReference,
     InvalidDenominator,
     OpenOutputFileFailed,
+    OpenInputFileFailed,
+    PortIsClosed,
 };
 
 pub const SchemeError = ReadError || TokenError || ParsingError || EvalError;

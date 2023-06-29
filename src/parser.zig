@@ -16,7 +16,7 @@ const PtrTag = sexp.PtrTag;
 const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
 const sxTrue  = sexp.sxTrue;
-const sxEnd = sexp.sxEnd;
+const sxEof = sexp.sxEof;
 const makeNumber = lex.makeNumber;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeInteger = sexp.makeInteger;
@@ -46,7 +46,6 @@ pub fn parseFile(lexer: *Lexer) void {
 /// If the current expression continues on the following
 /// lines, read as many lines as necessary to complete it.
 pub fn parseLine(lexer: *Lexer) !void {
-    try lexer.nextTokenChar();
     while (true) {
         lexer.nextToken() catch |err| {
             lexer.logError(err);
@@ -58,7 +57,7 @@ pub fn parseLine(lexer: *Lexer) !void {
             return;
         };
         lexer.inexpr = false;
-        if (lexer.eof or sexpr == sxEnd)
+        if (lexer.eof or sexpr == sxEof)
             break;
 
         sexpr = eval.globalEnv.eval(sexpr) catch |err| {
@@ -81,7 +80,7 @@ pub fn parseLine(lexer: *Lexer) !void {
 /// Exit:  token -> last token in Sexpr
 pub fn parseSexpr(lexer: *Lexer) !Sexpr {
     switch (lexer.token) {
-        .end => return sxEnd,
+        .end => return sxEof,
         .number => {
             return try makeNumber(lexer.number);
         },
