@@ -238,6 +238,30 @@ pub fn pEofPred(args: []Sexpr) EvalError!Sexpr {
     return if (args[0] == sxEof) sxTrue else sxFalse;
 }
 
+pub fn pLoad(args: []Sexpr) EvalError!Sexpr {
+    // (load <exp>)
+    const arg = args[0];
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+
+    const path = str.get(exp);
+    loadFile(path);
+
+    return sxVoid;
+}
+
+pub fn loadFile(path: []const u8) void {
+    const lexer = Lexer.create(path) catch |err| {
+        print("Could not load file \"{s}\"; error: {any}.\n", .{ path, err });
+        return;
+    };
+
+    par.parseFile(lexer);
+    lexer.destroy();
+}
+
 fn newInputPort(reader: *Lexer) !PortId {
     const pid = @truncate(PortId, portsTable.items.len);
     try portsTable.append(.{ .reader = reader });

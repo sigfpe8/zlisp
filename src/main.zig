@@ -1,10 +1,10 @@
 const std = @import("std");
 const chr = @import("char.zig");
 const lex = @import("lexer.zig");
-const parser = @import("parser.zig");
+const par = @import("parser.zig");
 const cell = @import("cell.zig");
-const out = @import("inpout.zig");
-const prim = @import("primitive.zig");
+const iop = @import("inpout.zig");
+const pri = @import("primitive.zig");
 const vec = @import("vector.zig");
 const proc = @import("procedure.zig");
 const eval = @import("eval.zig");
@@ -28,10 +28,10 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    try out.init();
-    defer out.deinit();
+    try iop.init();
+    defer iop.deinit();
 
-    out.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
+    iop.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
 
     try Cell.init(8192);
     defer Cell.deinit();
@@ -45,23 +45,15 @@ pub fn main() !void {
     try eval.internKeywords();
     try chr.init();
     try spc.init();
-    try prim.init();
+    try pri.init();
 
-    // Read files passed as arguments
-    var i: usize = 1;
-    while (i < args.len) : (i += 1) {
-        const lexer = Lexer.create(args[i]) catch |err| {
-            out.print("Could not open file \"{s}\"; error: {any}.\n", .{ args[i], err });
-            continue;
-        };
-
-        parser.parseFile(lexer);
-        lexer.destroy();
+    // Load files passed as arguments
+    for (args[1..]) |arg| {
+        iop.loadFile(arg);
     }
 
     // Start REPL
-    const lexer = out.getStdinLexer();
-
-    parser.parseFile(lexer);
+    const lexer = iop.getStdinLexer();
+    par.parseFile(lexer);
 }
 

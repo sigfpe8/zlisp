@@ -36,6 +36,7 @@ const pCurrentOutputPort = iop.pCurrentOutputPort;
 const pDisplay = iop.pDisplay;
 const pEofPred = iop.pEofPred;
 const pInputPortPred = iop.pInputPortPred;
+const pLoad = iop.pLoad;
 const pNewline = iop.pNewline;
 const pOpenInputFile = iop.pOpenInputFile;
 const pOpenOutputFile = iop.pOpenOutputFile;
@@ -108,6 +109,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "length",              .func = pLength,            .min = 1, .max = 1, },
     .{ .name = "list",                .func = pList,              .min = 0, .max = unlimited, },
     .{ .name = "list?",               .func = pListPred,          .min = 1, .max = 1, },
+    .{ .name = "load",                .func = pLoad,              .min = 1, .max = 1, },
     .{ .name = "make-polar",          .func = pMakePolar,         .min = 2, .max = 2, },
     .{ .name = "make-rectangular",    .func = pMakeRectangular,   .min = 2, .max = 2, },
     .{ .name = "newline",             .func = pNewline,           .min = 0, .max = 1, },
