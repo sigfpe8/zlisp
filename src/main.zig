@@ -60,7 +60,7 @@ pub fn main() !void {
     }
 
     // Start REPL
-    const lexer = out.getStdin();
+    const lexer = out.getStdinLexer();
 
     parser.parseFile(lexer);
 }

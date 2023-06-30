@@ -30,6 +30,7 @@ const unlimited = std.math.maxInt(u32);
 
 const pCloseInputPort = iop.pCloseInputPort;
 const pCloseOutputPort = iop.pCloseOutputPort;
+const pCharReadyPred = iop.pCharReadyPred;
 const pCurrentInputPort = iop.pCurrentInputPort;
 const pCurrentOutputPort = iop.pCurrentOutputPort;
 const pDisplay = iop.pDisplay;
@@ -39,7 +40,9 @@ const pNewline = iop.pNewline;
 const pOpenInputFile = iop.pOpenInputFile;
 const pOpenOutputFile = iop.pOpenOutputFile;
 const pOutputPortPred = iop.pOutputPortPred;
+const pPeekChar = iop.pPeekChar;
 const pRead = iop.pRead;
+const pReadChar = iop.pReadChar;
 const pWrite = iop.pWrite;
 const pWriteChar = iop.pWriteChar;
 
@@ -87,6 +90,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "car",                 .func = pCar,               .min = 1, .max = 1, },
     .{ .name = "cdr",                 .func = pCdr,               .min = 1, .max = 1, },
     .{ .name = "char?",               .func = pCharPred,          .min = 1, .max = 1, },
+    .{ .name = "char-ready?",         .func = pCharReadyPred,     .min = 0, .max = 1, },
     .{ .name = "char->integer",       .func = pCharToInt,         .min = 1, .max = 1, },
     .{ .name = "complex?",            .func = pComplexPred,       .min = 1, .max = 1, },
     .{ .name = "cons",                .func = pCons,              .min = 2, .max = 2, },
@@ -113,9 +117,11 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "open-output-file",    .func = pOpenOutputFile,    .min = 1, .max = 1, },
     .{ .name = "output-port?",        .func = pOutputPortPred,    .min = 1, .max = 1, },
     .{ .name = "pair?",               .func = pPairPred,          .min = 1, .max = 1, },
+    .{ .name = "peek-char",           .func = pPeekChar,          .min = 0, .max = 1, },
     .{ .name = "procedure?",          .func = pProcPred,          .min = 1, .max = 1, },
     .{ .name = "rational?",           .func = pRatPred,           .min = 1, .max = 1, },
     .{ .name = "read",                .func = pRead,              .min = 0, .max = 1, },
+    .{ .name = "read-char",           .func = pReadChar,          .min = 0, .max = 1, },
     .{ .name = "real?",               .func = pRealPred,          .min = 1, .max = 1, },
     .{ .name = "reverse",             .func = pReverse,           .min = 1, .max = 1, },
     .{ .name = "string?",             .func = pStrPred,           .min = 1, .max = 1, },

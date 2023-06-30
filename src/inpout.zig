@@ -28,6 +28,7 @@ const TaggedInt = sxp.TaggedInt;
 const TagMask = sxp.TagMask;
 const TagShift = sxp.TagShift;
 const UntaggedInt = sxp.UntaggedInt;
+const makeChar = sxp.makeChar;
 const makePort = sxp.makePort;
 
 const EvalError = @import("error.zig").EvalError;
@@ -127,29 +128,120 @@ pub fn getName(pid: PortId) []const u8 {
     }
 }
 
-pub fn getStdin() *Lexer {
+// ---------- Input ---------------------------------------
+
+pub fn pCurrentInputPort(_: []Sexpr) EvalError!Sexpr {
+    // (current-input-port)
+    return stdinPort;
+}
+
+pub fn pInputPortPred(args: []Sexpr) EvalError!Sexpr {
+    // (input-port? <exp>)
+    return if (isInputPort(args[0])) sxTrue else sxFalse;
+}
+
+pub fn pOpenInputFile(args: []Sexpr) EvalError!Sexpr {
+    // (open-input-file <exp>)
+    const arg = args[0];
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .string)
+        return EvalError.ExpectedString;
+
+    const path = str.get(exp);
+    const lexer = Lexer.create(path) catch |err| {
+        std.debug.print("Error opening '{s}' for input: {any}\n", .{path,err});
+        return EvalError.OpenInputFileFailed;
+    };
+    const pid = try newInputPort(lexer);
+    return makePort(pid);
+}
+
+pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
+    // (close-input-port <port>)
+    const arg = args[0];
+    const pid = arg >> TagShift;
+    if (!isInputPort(arg))
+        return EvalError.ExpectedInputPort;
+    const reader = portsTable.items[pid].reader;
+    if (!reader.isterm)
+        reader.file.close();
+    reader.isopen = false;
+    return sxVoid;
+}
+
+pub fn getStdinLexer() *Lexer {
     const lexer: *Lexer = portsTable.items[0].reader;
     
     return lexer;
 }
 
-pub fn newInputPort(reader: *Lexer) !PortId {
+pub fn pRead(args: []Sexpr) EvalError!Sexpr {
+    var lexer = try getLexer(args);
+
+    // Advance to next token
+    lexer.nextToken() catch |err| {
+        lexer.logError(err);
+        return sxVoid;
+    };
+
+    // Read one S-expression
+    const sexpr = par.parseSexpr(lexer) catch |err| {
+        lexer.logError(err);
+        return sxVoid;
+    };
+
+    return sexpr;
+}
+
+pub fn pReadChar(args: []Sexpr) EvalError!Sexpr {
+    var lexer = try getLexer(args);
+
+    // Advance to next character
+    lexer.nextTokenChar() catch |err| {
+        lexer.logError(err);
+        return sxVoid;
+    };
+
+    if (lexer.eof)
+        return sxEof;
+
+    // Return current character
+    return makeChar(lexer.cchar);
+}
+
+pub fn pPeekChar(args: []Sexpr) EvalError!Sexpr {
+    var lexer = try getLexer(args);
+
+    const peek = lexer.peekNextChar();
+
+    // FIX: With the current mechanism we return EOF at
+    // the end of a line.
+    if (peek == 0 or lexer.eof)
+        return sxEof;
+
+    // Return next character
+    return makeChar(peek);
+}
+
+pub fn pCharReadyPred(args: []Sexpr) EvalError!Sexpr {
+    _ = try getLexer(args);
+
+    // FIX: in case of interactive terminal, really test
+    // if character is available or whether a read-char
+    // would block.
+    return sxTrue;
+}
+
+pub fn pEofPred(args: []Sexpr) EvalError!Sexpr {
+    // (eof-object? <exp>)
+    return if (args[0] == sxEof) sxTrue else sxFalse;
+}
+
+fn newInputPort(reader: *Lexer) !PortId {
     const pid = @truncate(PortId, portsTable.items.len);
     try portsTable.append(.{ .reader = reader });
     return pid;
-}
-
-pub fn newOutputPort(writer: *Printer) !PortId {
-    const pid = @truncate(PortId, portsTable.items.len);
-    try portsTable.append(.{ .writer = writer });
-    return pid;
-}
-
-pub fn print(comptime format: []const u8, args: anytype) void {
-    stdout.print(format, args) catch |err| {
-        std.debug.print("Error {any} writing to stdout:\n", .{err});
-        std.debug.print(format, args);
-    };
 }
 
 fn isInputPort(arg: Sexpr) bool {
@@ -163,30 +255,32 @@ fn isInputPort(arg: Sexpr) bool {
     }
 }
 
-fn isOutputPort(arg: Sexpr) bool {
-    const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
-    if (tag != .port)
-        return false;
-    switch (portsTable.items[exp]) {
-        .reader => return false,
-        .writer => return true,
+fn getLexer(args: []Sexpr) !*Lexer {
+    if (args.len == 0) {
+        return getStdinLexer();
+    } else {
+        const arg = args[0];
+        if (!isInputPort(arg))
+            return EvalError.ExpectedInputPort;
+        const port = portsTable.items[arg >> TagShift];
+        if (!port.reader.isopen)
+            return EvalError.PortIsClosed;
+        return port.reader;
     }
 }
 
-pub fn pCurrentInputPort(_: []Sexpr) EvalError!Sexpr {
-    // (current-input-port)
-    return stdinPort;
+
+// ---------- Output --------------------------------------
+pub fn print(comptime format: []const u8, args: anytype) void {
+    stdout.print(format, args) catch |err| {
+        std.debug.print("Error {any} writing to stdout:\n", .{err});
+        std.debug.print(format, args);
+    };
 }
 
 pub fn pCurrentOutputPort(_: []Sexpr) EvalError!Sexpr {
     // (current-input-port)
     return stdoutPort;
-}
-
-pub fn pInputPortPred(args: []Sexpr) EvalError!Sexpr {
-    // (input-port? <exp>)
-    return if (isInputPort(args[0])) sxTrue else sxFalse;
 }
 
 pub fn pOutputPortPred(args: []Sexpr) EvalError!Sexpr {
@@ -222,73 +316,6 @@ pub fn pCloseOutputPort(args: []Sexpr) EvalError!Sexpr {
         writer.file.close();
     writer.isopen = false;
     return sxVoid;
-}
-
-pub fn pOpenInputFile(args: []Sexpr) EvalError!Sexpr {
-    // (open-input-file <exp>)
-    const arg = args[0];
-    const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
-    if (tag != .string)
-        return EvalError.ExpectedString;
-
-    const path = str.get(exp);
-    const lexer = Lexer.create(path) catch |err| {
-        std.debug.print("Error opening '{s}' for input: {any}\n", .{path,err});
-        return EvalError.OpenInputFileFailed;
-    };
-    const pid = try newInputPort(lexer);
-    return makePort(pid);
-}
-
-pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
-    // (close-input-port <port>)
-    const arg = args[0];
-    const pid = arg >> TagShift;
-    if (!isInputPort(arg))
-        return EvalError.ExpectedInputPort;
-    const reader = portsTable.items[pid].reader;
-    if (!reader.isterm)
-        reader.file.close();
-    reader.isopen = false;
-    return sxVoid;
-}
-
-pub fn pRead(args: []Sexpr) EvalError!Sexpr {
-    var lexer: *Lexer = undefined;
-
-    if (args.len == 0) {
-        // (read)
-        lexer = getStdin();
-    } else {
-        // (read <port>)
-        const arg = args[0];
-        if (!isInputPort(arg))
-            return EvalError.ExpectedInputPort;
-        const port = portsTable.items[arg >> TagShift];
-        if (!port.reader.isopen)
-            return EvalError.PortIsClosed;
-        lexer = port.reader;
-    }
-
-    // Advance to next token
-    lexer.nextToken() catch |err| {
-        lexer.logError(err);
-        return sxVoid;
-    };
-
-    // Read one S-expression
-    const sexpr = par.parseSexpr(lexer) catch |err| {
-        lexer.logError(err);
-        return sxVoid;
-    };
-
-    return sexpr;
-}
-
-pub fn pEofPred(args: []Sexpr) EvalError!Sexpr {
-    // (eof-object? <exp>)
-    return if (args[0] == sxEof) sxTrue else sxFalse;
 }
 
 pub fn pDisplay(args: []Sexpr) EvalError!Sexpr {
@@ -397,66 +424,6 @@ pub fn pWriteChar(args: []Sexpr) EvalError!Sexpr {
     
     print("{c}", .{exp});
     return sxVoid;
-}
-
-// How to print complex numbers
-const printZero  = 0b00000; // Both re and im are zero
-const printReal  = 0b00001; // re !=0 so print it
-const printPlus  = 0b00010; // im > 0 so print "+"
-const printMinus = 0b00100; // im = -1 so print "-"
-const printImag  = 0b01000; // im !=-1 and im != 0 and im != 1 so print it
-const printI     = 0b10000; // im != 0 so print "i"
-
-/// Checks whether the imaginary part of a number is -1 or +1
-/// Returns: -1 or 1 if the imaginary part is either of these values
-///          0 otherwise
-fn isUnit(num: Sexpr) i64 {
-    var int: i64 = undefined;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
-        .small_int, .integer => {
-            int = getAsInt(num);
-        },
-        else => {
-            int = 0;
-        },
-    }
-    return if (int == -1 or int == 1) int else 0;
-}
-
-/// Examines the real and imaginary parts of a complex number
-/// and returns a series of bit flags that determine how the
-/// number should be printed.
-fn complexPrintFlags(re: Sexpr, im: Sexpr) u32 {
-    var flags: u32 = printZero;
-    const re_sign = getSign(re);
-    const im_sign = getSign(im);
-    const im_unit = isUnit(im);
-
-    // 0+0i ==> 0
-    if (re_sign == 0 and im_sign == 0)
-        return flags;
-
-    // 2, 2+3i
-    if (re_sign != 0)
-        flags |= printReal;
-
-    // 2+3i, +3i, +3/4i, 1+0.75i
-    if (im_sign > 0)
-        flags |= printPlus;
-
-    // -i
-    if (im_unit == -1)
-        flags |= printMinus;
-
-    // -3i or 3i
-    if (im_sign != 0 and im_unit == 0)
-        flags |= printImag;
-
-    // 2+3i, -i, +i
-    if (im_sign != 0)
-        flags |= printI;
-
-    return flags;
 }
 
 pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
@@ -577,7 +544,67 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
     }
 }
 
-pub fn printList(sexpr: Sexpr) void {
+// How to print complex numbers
+const printZero  = 0b00000; // Both re and im are zero
+const printReal  = 0b00001; // re !=0 so print it
+const printPlus  = 0b00010; // im > 0 so print "+"
+const printMinus = 0b00100; // im = -1 so print "-"
+const printImag  = 0b01000; // im !=-1 and im != 0 and im != 1 so print it
+const printI     = 0b10000; // im != 0 so print "i"
+
+/// Checks whether the imaginary part of a number is -1 or +1
+/// Returns: -1 or 1 if the imaginary part is either of these values
+///          0 otherwise
+fn isUnit(num: Sexpr) i64 {
+    var int: i64 = undefined;
+    switch (@intToEnum(PtrTag, num & TagMask)) {
+        .small_int, .integer => {
+            int = getAsInt(num);
+        },
+        else => {
+            int = 0;
+        },
+    }
+    return if (int == -1 or int == 1) int else 0;
+}
+
+/// Examines the real and imaginary parts of a complex number
+/// and returns a series of bit flags that determine how the
+/// number should be printed.
+fn complexPrintFlags(re: Sexpr, im: Sexpr) u32 {
+    var flags: u32 = printZero;
+    const re_sign = getSign(re);
+    const im_sign = getSign(im);
+    const im_unit = isUnit(im);
+
+    // 0+0i ==> 0
+    if (re_sign == 0 and im_sign == 0)
+        return flags;
+
+    // 2, 2+3i
+    if (re_sign != 0)
+        flags |= printReal;
+
+    // 2+3i, +3i, +3/4i, 1+0.75i
+    if (im_sign > 0)
+        flags |= printPlus;
+
+    // -i
+    if (im_unit == -1)
+        flags |= printMinus;
+
+    // -3i or 3i
+    if (im_sign != 0 and im_unit == 0)
+        flags |= printImag;
+
+    // 2+3i, -i, +i
+    if (im_sign != 0)
+        flags |= printI;
+
+    return flags;
+}
+
+fn printList(sexpr: Sexpr) void {
     if (sexpr == nil)
         return;
     print("{s}", .{" "});
@@ -591,3 +618,21 @@ pub fn printList(sexpr: Sexpr) void {
         printSexpr(sexpr, false);
     }
 }
+
+fn newOutputPort(writer: *Printer) !PortId {
+    const pid = @truncate(PortId, portsTable.items.len);
+    try portsTable.append(.{ .writer = writer });
+    return pid;
+}
+
+fn isOutputPort(arg: Sexpr) bool {
+    const exp = arg >> TagShift;
+    const tag = @intToEnum(PtrTag, arg & TagMask);
+    if (tag != .port)
+        return false;
+    switch (portsTable.items[exp]) {
+        .reader => return false,
+        .writer => return true,
+    }
+}
+

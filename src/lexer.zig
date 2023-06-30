@@ -338,16 +338,16 @@ pub const Lexer = struct {
         self.nextChar();
     }
 
+    pub fn peekNextChar(self: *Lexer) u8 {
+        if (self.cpos >= self.line.len)
+            return 0;
+        return self.line[self.cpos];
+    }
+
     fn peekChar(self: *Lexer, next: usize) u8 {
         if (self.cpos + next - 1 >= self.line.len)
             return 0;
         return self.line[self.cpos + next - 1];
-    }
-
-    fn peekNextChar(self: *Lexer) u8 {
-        if (self.cpos >= self.line.len)
-            return 0;
-        return self.line[self.cpos];
     }
 
     fn nextMatch(self: *Lexer, next: []const u8) bool {
