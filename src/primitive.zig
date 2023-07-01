@@ -28,6 +28,8 @@ const makePolar = sexp.makePolar;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const unlimited = std.math.maxInt(u32);
 
+const pApply = eval.pApply;
+
 const pCloseInputPort = iop.pCloseInputPort;
 const pCloseOutputPort = iop.pCloseOutputPort;
 const pCharReadyPred = iop.pCharReadyPred;
@@ -87,6 +89,7 @@ const FunDisp = struct {
 };
 
 const PrimitTable = [_]FunDisp{
+    .{ .name = "apply",               .func = pApply,             .min = 2, .max = unlimited, },
     .{ .name = "boolean?",            .func = pBoolPred,          .min = 1, .max = 1, },
     .{ .name = "car",                 .func = pCar,               .min = 1, .max = 1, },
     .{ .name = "cdr",                 .func = pCdr,               .min = 1, .max = 1, },

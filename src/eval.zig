@@ -131,6 +131,61 @@ fn apply(newenv: *Environ, pid: ProcId, args: []Sexpr) !Sexpr {
     return try env.evalBody(body);
 }
 
+/// Implements primitive `apply`
+/// (apply <proc> <arg1> ... <argn> <rest-args>)
+pub fn pApply(args: []Sexpr) EvalError!Sexpr {
+    var tvec: [MAXVECSIZE]Sexpr = undefined;
+
+    // Get the procedure
+    const vproc = args[0];
+    const tag = @intToEnum(PtrTag, vproc & TagMask);
+    const id = vproc >> TagShift;
+
+    if (tag != .primitive and tag != .procedure) {
+        print("'apply' expected primitive or procedure.\n", .{});
+        return EvalError.ExpectedProcedure;
+    }
+
+    // Copy arg1 ... argn to tvec[] (maybe none)
+    // No need to check length because args[] already comes from a local vector.
+    var len: u32 = 0;
+    for (args[1..args.len-1]) |arg| {
+        tvec[len] = arg;
+        len += 1;
+    }
+
+    // Last argument (<rest-args>) must be a list
+    var list = args[args.len - 1];
+    if (@intToEnum(PtrTag, list & TagMask) != .pair)
+        return EvalError.ExpectedList;
+
+    // Append <rest-args> to tvec[]
+    while (list != nil) {
+        if (len == MAXVECSIZE)
+            return EvalError.TooManyArguments;
+
+        const arg = try car(list);
+        tvec[len] = arg;
+        len += 1;
+        list = try cdr(list);
+    }
+
+    switch (tag) {
+        .primitive => {
+            return try prim.apply(id, tvec[0..len]);
+        },
+        .procedure => {
+            const newenv: *Environ = try allocator.create(Environ);
+            newenv.* = .{
+                .outer = null,
+                .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
+            };
+            return try apply(newenv, id, tvec[0..len]);
+        },
+        else => unreachable,
+    }
+}
+
 pub fn logError(err: anyerror) void {
     var buffer: [64]u8 = undefined;
     const name = std.fmt.bufPrint(&buffer, "{!}", .{err}) catch unreachable;
