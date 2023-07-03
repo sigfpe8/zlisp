@@ -51,6 +51,7 @@ const pWriteChar = iop.pWriteChar;
 
 const getAsInt = nbr.getAsInt;
 const getAsFloat = nbr.getAsFloat;
+const pEvenPred = nbr.pEvenPred;
 const pNumPred = nbr.pNumPred;
 const pIntPred = nbr.pIntPred;
 const pRatPred = nbr.pRatPred;
@@ -60,9 +61,11 @@ const pExactPred = nbr.pExactPred;
 const pInexactPred = nbr.pInexactPred;
 const pMakePolar = nbr.pMakePolar;
 const pMakeRectangular = nbr.pMakeRectangular;
-const pZeroPred = nbr.pZeroPred;
+const pOddPred = nbr.pOddPred;
+const pPositivePred = nbr.pPositivePred;
 const pPlus = nbr.pPlus;
 const pMinus = nbr.pMinus;
+const pNegativePred = nbr.pNegativePred;
 const pTimes = nbr.pTimes;
 const pDiv = nbr.pDiv;
 const pLess = nbr.pLess;
@@ -70,6 +73,7 @@ const pLessEq = nbr.pLessEq;
 const pEqual = nbr.pEqual;
 const pGrt = nbr.pGrt;
 const pGrtEq = nbr.pGrtEq;
+const pZeroPred = nbr.pZeroPred;
 
 // All functions named 'pXXX()' are primitives (a.k.a in Scheme as
 // standard procedures). They receive a single argument which is a
@@ -104,6 +108,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "current-output-port", .func = pCurrentOutputPort, .min = 0, .max = 0, },
     .{ .name = "display",             .func = pDisplay,           .min = 1, .max = 2, },
     .{ .name = "eof-object?",         .func = pEofPred,           .min = 1, .max = 1, },
+    .{ .name = "even?",               .func = pEvenPred,          .min = 1, .max = 1, },
     .{ .name = "exact?",              .func = pExactPred,         .min = 1, .max = 1, },
     .{ .name = "inexact?",            .func = pInexactPred,       .min = 1, .max = 1, },
     .{ .name = "input-port?",         .func = pInputPortPred,     .min = 1, .max = 1, },
@@ -115,14 +120,17 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "load",                .func = pLoad,              .min = 1, .max = 1, },
     .{ .name = "make-polar",          .func = pMakePolar,         .min = 2, .max = 2, },
     .{ .name = "make-rectangular",    .func = pMakeRectangular,   .min = 2, .max = 2, },
+    .{ .name = "negative?",           .func = pNegativePred,      .min = 1, .max = 1, },
     .{ .name = "newline",             .func = pNewline,           .min = 0, .max = 1, },
     .{ .name = "null?",               .func = pNullPred,          .min = 1, .max = 1, },
     .{ .name = "number?",             .func = pNumPred,           .min = 1, .max = 1, },
+    .{ .name = "odd?",                .func = pOddPred,           .min = 1, .max = 1, },
     .{ .name = "open-input-file",     .func = pOpenInputFile,     .min = 1, .max = 1, },
     .{ .name = "open-output-file",    .func = pOpenOutputFile,    .min = 1, .max = 1, },
     .{ .name = "output-port?",        .func = pOutputPortPred,    .min = 1, .max = 1, },
     .{ .name = "pair?",               .func = pPairPred,          .min = 1, .max = 1, },
     .{ .name = "peek-char",           .func = pPeekChar,          .min = 0, .max = 1, },
+    .{ .name = "positive?",           .func = pPositivePred,      .min = 1, .max = 1, },
     .{ .name = "procedure?",          .func = pProcPred,          .min = 1, .max = 1, },
     .{ .name = "rational?",           .func = pRatPred,           .min = 1, .max = 1, },
     .{ .name = "read",                .func = pRead,              .min = 0, .max = 1, },

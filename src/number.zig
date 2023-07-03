@@ -798,6 +798,50 @@ pub fn pMakeRectangular(args: []Sexpr) EvalError!Sexpr {
     return makeComplex(args[0], args[1]);
 }
 
+pub fn pPositivePred(args: []Sexpr) EvalError!Sexpr {
+    // (positive? <exp>)
+    const exp = args[0];
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const cmp: isize = switch (tag) {
+        .small_int, .integer, .rational, .float => getSign(exp),
+        else => return EvalError.ExpectedReal,
+    };
+    return if (cmp > 0) sxTrue else sxFalse;
+}
+
+pub fn pNegativePred(args: []Sexpr) EvalError!Sexpr {
+    // (negative? <exp>)
+    const exp = args[0];
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const cmp: isize = switch (tag) {
+        .small_int, .integer, .rational, .float => getSign(exp),
+        else => return EvalError.ExpectedReal,
+    };
+    return if (cmp < 0) sxTrue else sxFalse;
+}
+
+pub fn pOddPred(args: []Sexpr) EvalError!Sexpr {
+    // (odd? <exp>)
+    const exp = args[0];
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const int: i64 = switch (tag) {
+        .small_int, .integer, => getAsInt(exp),
+        else => return EvalError.ExpectedInteger,
+    };
+    return if ((int & 1) != 0) sxTrue else sxFalse;
+}
+
+pub fn pEvenPred(args: []Sexpr) EvalError!Sexpr {
+    // (even? <exp>)
+    const exp = args[0];
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const int: i64 = switch (tag) {
+        .small_int, .integer, => getAsInt(exp),
+        else => return EvalError.ExpectedInteger,
+    };
+    return if ((int & 1) == 0) sxTrue else sxFalse;
+}
+
 pub fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
     // (zero? <exp>)
     const exp = args[0];
@@ -813,7 +857,7 @@ pub fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
                 and isZeroReal(cel.cellArray[ind].cmp.re),
         else => return EvalError.ExpectedNumber,
     };
-    return  if (zero) sxTrue else sxFalse;
+    return if (zero) sxTrue else sxFalse;
 }
 
 pub fn pPlus(args: []Sexpr) EvalError!Sexpr {
