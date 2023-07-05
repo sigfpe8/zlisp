@@ -51,8 +51,11 @@ const pWriteChar = iop.pWriteChar;
 
 const getAsInt = nbr.getAsInt;
 const getAsFloat = nbr.getAsFloat;
+const pAngle = nbr.pAngle;
+const pDiv = nbr.pDiv;
 const pEvenPred = nbr.pEvenPred;
 const pNumPred = nbr.pNumPred;
+const pImagPart = nbr.pImagPart;
 const pIntPred = nbr.pIntPred;
 const pRatPred = nbr.pRatPred;
 const pRealPred = nbr.pRealPred;
@@ -64,10 +67,11 @@ const pMakeRectangular = nbr.pMakeRectangular;
 const pOddPred = nbr.pOddPred;
 const pPositivePred = nbr.pPositivePred;
 const pPlus = nbr.pPlus;
+const pMagnitude = nbr.pMagnitude;
 const pMinus = nbr.pMinus;
 const pNegativePred = nbr.pNegativePred;
+const pRealPart = nbr.pRealPart;
 const pTimes = nbr.pTimes;
-const pDiv = nbr.pDiv;
 const pLess = nbr.pLess;
 const pLessEq = nbr.pLessEq;
 const pEqual = nbr.pEqual;
@@ -93,6 +97,7 @@ const FunDisp = struct {
 };
 
 const PrimitTable = [_]FunDisp{
+    .{ .name = "angle",               .func = pAngle,             .min = 1, .max = 1, },
     .{ .name = "apply",               .func = pApply,             .min = 2, .max = unlimited, },
     .{ .name = "boolean?",            .func = pBoolPred,          .min = 1, .max = 1, },
     .{ .name = "car",                 .func = pCar,               .min = 1, .max = 1, },
@@ -110,6 +115,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "eof-object?",         .func = pEofPred,           .min = 1, .max = 1, },
     .{ .name = "even?",               .func = pEvenPred,          .min = 1, .max = 1, },
     .{ .name = "exact?",              .func = pExactPred,         .min = 1, .max = 1, },
+    .{ .name = "imag-part",           .func = pImagPart,          .min = 1, .max = 1, },
     .{ .name = "inexact?",            .func = pInexactPred,       .min = 1, .max = 1, },
     .{ .name = "input-port?",         .func = pInputPortPred,     .min = 1, .max = 1, },
     .{ .name = "integer?",            .func = pIntPred,           .min = 1, .max = 1, },
@@ -118,6 +124,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "list",                .func = pList,              .min = 0, .max = unlimited, },
     .{ .name = "list?",               .func = pListPred,          .min = 1, .max = 1, },
     .{ .name = "load",                .func = pLoad,              .min = 1, .max = 1, },
+    .{ .name = "magnitude",           .func = pMagnitude,         .min = 1, .max = 1, },
     .{ .name = "make-polar",          .func = pMakePolar,         .min = 2, .max = 2, },
     .{ .name = "make-rectangular",    .func = pMakeRectangular,   .min = 2, .max = 2, },
     .{ .name = "negative?",           .func = pNegativePred,      .min = 1, .max = 1, },
@@ -136,6 +143,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "read",                .func = pRead,              .min = 0, .max = 1, },
     .{ .name = "read-char",           .func = pReadChar,          .min = 0, .max = 1, },
     .{ .name = "real?",               .func = pRealPred,          .min = 1, .max = 1, },
+    .{ .name = "real-part",           .func = pRealPart,          .min = 1, .max = 1, },
     .{ .name = "reverse",             .func = pReverse,           .min = 1, .max = 1, },
     .{ .name = "string?",             .func = pStrPred,           .min = 1, .max = 1, },
     .{ .name = "string-length",       .func = pStrLen,            .min = 1, .max = 1, },

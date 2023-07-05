@@ -326,6 +326,46 @@ pub fn getSign(num: Sexpr) isize {
     return cmpNum(i64, int, 0);
 }
 
+fn absReal(num: Sexpr) !Sexpr {
+    const exp = num >> TagShift;
+    var int: i64 = undefined;
+    switch (@intToEnum(PtrTag, num & TagMask)) {
+        .small_int, .integer => {
+            int = getAsInt(num);
+            if (int != std.math.minInt(i64)) {
+                if (int >= 0)
+                    return num;
+                return try makeInteger(-int);
+            }
+            // Since we cannot negate minInt(i64), we're coercing it to float.
+            // Maybe we should give an error?
+            const flt = @intToFloat(f64, int);
+            return try makeFloat(-flt);
+        },
+        .float => {
+            const flt = cel.cellArray[exp].flt;
+            if (flt >= 0)
+                return num;
+            return try makeFloat(-flt);
+        },
+        .rational => {
+            int = getAsInt(cel.cellArray[exp].rat.num);
+            if (int != std.math.minInt(i64)) {
+                if (int >= 0)
+                    return num;
+                const den = getAsInt(cel.cellArray[exp].rat.den);
+                return try makeRational(-int, den);
+            }
+            // Since we cannot negate minInt(i64), we're coercing it to float.
+            // Maybe we should give an error?
+            const fnu = @intToFloat(f64, int); 
+            const fde = @intToFloat(f64, getAsInt(cel.cellArray[exp].rat.den));
+            return try makeFloat(-fnu / fde);
+        },
+        else => unreachable,
+    }
+}
+
 /// Adds two Real{} numbers
 fn addReal(r1: Real, r2: Real) Real {
     switch (r1) {
@@ -859,6 +899,94 @@ pub fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
     };
     return if (zero) sxTrue else sxFalse;
 }
+
+pub fn pRealPart(args: []Sexpr) EvalError!Sexpr {
+    // (real-part <exp>)
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+
+    return switch (tag) {
+        .small_int, .integer, .rational, .float => exp,
+        .polar => blk: {
+            const mag = cel.cellArray[ind].pol.mag;
+            const ang = cel.cellArray[ind].pol.ang;
+            if (isZeroReal(ang))
+                break :blk mag;
+            const cmp = polarToComplex(getAsFloat(mag), getAsFloat(ang));
+            break :blk try makeFloat(cmp.re.flt);
+        },
+        .complex => cel.cellArray[ind].cmp.re,
+        else => EvalError.ExpectedNumber,
+   };
+ }
+
+pub fn pImagPart(args: []Sexpr) EvalError!Sexpr {
+    // (imag-part <exp>)
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+
+    return switch (tag) {
+        .small_int, .integer, .rational, .float => try makeInteger(0),
+        .polar => blk: {
+            const mag = getAsFloat(cel.cellArray[ind].pol.mag);
+            const ang = getAsFloat(cel.cellArray[ind].pol.ang);
+            const cmp = polarToComplex(mag, ang);
+            break :blk try makeFloat(cmp.im.flt);
+        },
+        .complex => cel.cellArray[ind].cmp.im,
+        else => EvalError.ExpectedNumber,
+   };
+ }
+
+pub fn pMagnitude(args: []Sexpr) EvalError!Sexpr {
+    // (magnitude <exp>)
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+
+   return switch (tag) {
+        .small_int, .integer, .rational, .float => try absReal(exp),
+        .polar => cel.cellArray[ind].pol.mag,
+        .complex => blk: {
+            const re = cel.cellArray[ind].cmp.re;
+            const im = cel.cellArray[ind].cmp.im;
+            // Some special cases
+            if (isZeroReal(re)) // Pure imaginary
+                return try absReal(im);
+            if (isZeroReal(im)) // Pure real
+                return try absReal(re);
+            // Generic case
+            const pol = complexToPolar(getAsFloat(re), getAsFloat(im));
+            break :blk try makeFloat(pol.mag.flt);
+        },
+        else => EvalError.ExpectedNumber,
+   };
+ }
+
+pub fn pAngle(args: []Sexpr) EvalError!Sexpr {
+    // (angle <exp>)
+    const exp = args[0];
+    const ind = exp >> TagShift;
+    const tag = @intToEnum(PtrTag, exp & TagMask);
+
+    return switch (tag) {
+        .small_int, .integer, .rational, .float => blki: {
+            if (getSign(exp) >= 0)
+                break :blki try makeInteger(0);
+            break :blki try makeFloat(3.141592653589793);
+        },
+        .polar => cel.cellArray[ind].pol.ang,
+        .complex => blkc: {
+            const re = cel.cellArray[ind].cmp.re;
+            const im = cel.cellArray[ind].cmp.im;
+            const pol = complexToPolar(getAsFloat(re), getAsFloat(im));
+            break :blkc try makeFloat(pol.ang.flt);
+        },
+        else => return EvalError.ExpectedNumber,
+   };
+ }
 
 pub fn pPlus(args: []Sexpr) EvalError!Sexpr {
     // (+ <num>...)
