@@ -117,6 +117,36 @@ pub fn isInteger(num: Sexpr) bool {
    };
 }
 
+/// Tests if a number represented as an Sexpr is a Real
+pub fn isReal(num: Sexpr) bool {
+    const tag = @intToEnum(PtrTag, num & TagMask);
+
+   return switch (tag) {
+        .small_int, .integer, .rational, .float => true,
+        .polar => blk: {
+            const ind = num >> TagShift;
+            // To be honest we should also test if the angle is +-pi,
+            // which would correspond to a negative real, but
+            // the innacuracies introduced by the floating-point
+            // representation of the angle in radians make this quite
+            // unreliable. Perhaps there should be an epsilon for
+            // these situations.
+            break :blk if (isZeroReal(cel.cellArray[ind].pol.ang))
+                            true
+                       else
+                            false;
+        },
+        .complex => blk: {
+            const ind = num >> TagShift;
+            break :blk if (iisZeroReal(cel.cellArray[ind].cmp.im))
+                            true
+                       else
+                            false;
+        },
+        else => unreachable,
+   };
+}
+
 /// Tests if a real number represented as an Sexpr is exact.
 /// Must not be called with complex types.
 pub fn isExactReal(num: Sexpr) bool {
@@ -326,12 +356,13 @@ pub fn getSign(num: Sexpr) isize {
     return cmpNum(i64, int, 0);
 }
 
+/// Returns the absolute value of a real number Sexpr
+/// Not defined for complex numbers.
 fn absReal(num: Sexpr) !Sexpr {
     const exp = num >> TagShift;
-    var int: i64 = undefined;
     switch (@intToEnum(PtrTag, num & TagMask)) {
         .small_int, .integer => {
-            int = getAsInt(num);
+            const int = getAsInt(num);
             if (int != std.math.minInt(i64)) {
                 if (int >= 0)
                     return num;
@@ -349,7 +380,7 @@ fn absReal(num: Sexpr) !Sexpr {
             return try makeFloat(-flt);
         },
         .rational => {
-            int = getAsInt(cel.cellArray[exp].rat.num);
+            const int = getAsInt(cel.cellArray[exp].rat.num);
             if (int != std.math.minInt(i64)) {
                 if (int >= 0)
                     return num;
@@ -844,6 +875,20 @@ pub fn pPositivePred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, exp & TagMask);
     const cmp: isize = switch (tag) {
         .small_int, .integer, .rational, .float => getSign(exp),
+        .polar => blkp: {
+            const ind = exp >> TagShift;
+            if (isZeroReal(cel.cellArray[ind].pol.ang)) {
+                break :blkp 1;
+            }
+            return EvalError.ExpectedReal;
+        },
+        .complex => blkc: {
+            const ind = exp >> TagShift;
+            if (isZeroReal(cel.cellArray[ind].cmp.im)) {
+                break :blkc getSign(cel.cellArray[ind].cmp.re);
+            }
+            return EvalError.ExpectedReal;
+        },
         else => return EvalError.ExpectedReal,
     };
     return if (cmp > 0) sxTrue else sxFalse;
@@ -855,6 +900,20 @@ pub fn pNegativePred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, exp & TagMask);
     const cmp: isize = switch (tag) {
         .small_int, .integer, .rational, .float => getSign(exp),
+        .polar => blkp: {
+            const ind = exp >> TagShift;
+            if (isZeroReal(cel.cellArray[ind].pol.ang)) {
+                break :blkp 1;
+            }
+            return EvalError.ExpectedReal;
+        },
+        .complex => blkc: {
+            const ind = exp >> TagShift;
+            if (isZeroReal(cel.cellArray[ind].cmp.im)) {
+                break :blkc getSign(cel.cellArray[ind].cmp.re);
+            }
+            return EvalError.ExpectedReal;
+        },
         else => return EvalError.ExpectedReal,
     };
     return if (cmp < 0) sxTrue else sxFalse;
