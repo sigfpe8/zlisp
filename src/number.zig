@@ -138,7 +138,7 @@ pub fn isReal(num: Sexpr) bool {
         },
         .complex => blk: {
             const ind = num >> TagShift;
-            break :blk if (iisZeroReal(cel.cellArray[ind].cmp.im))
+            break :blk if (isZeroReal(cel.cellArray[ind].cmp.im))
                             true
                        else
                             false;
