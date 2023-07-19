@@ -1,3 +1,15 @@
+2023-07-19 - Use external stack to evaluate expressions
+             Previously, `env.eval(expr)` would return the result of evaluating
+             `expr` in `env` as a simple value. Arguments to procedures and
+             special forms were kept in fixed size Zig local arrays. Now an
+             external stack is used both to pass arguments and get return results.
+             In the future we would also like to use an external stack to control
+             the flow of the Scheme evaluation. Using a stack for arguments and
+             results was a first step in that direction but for now we still
+             rely on Zig's recursiveness to handle control flow, that is, `eval()`
+             ends up calling itself to evaluate arguments to procedures/special
+             forms.
+
 2023-06-29 - Unify lexer with input ports
              The input part is mostly done. There are a few missing primitives
              like (read-char), (peek-char) and a few others. There is probably
