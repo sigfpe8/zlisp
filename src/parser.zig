@@ -60,7 +60,7 @@ pub fn parseLine(lexer: *Lexer) !void {
         if (lexer.eof or sexpr == sxEof)
             break;
 
-        sexpr = eval.globalEnv.eval(sexpr) catch |err| {
+        sexpr = eval.globalEnv.evalPop(sexpr) catch |err| {
             eval.logError(err);
             return;
         };

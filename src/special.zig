@@ -33,11 +33,12 @@ const cons = eval.cons;
 const quoteExpr = eval.quoteExpr;
 const unlimited = std.math.maxInt(u32);
 const EvalError = @import("error.zig").EvalError;
+const stackPush = eval.stackPush;
 
 // Function dispatch
 const FunDisp = struct {
     name: []const u8, // Special form name (e.g. "if")
-    func: *const fn (*Environ, []Sexpr) EvalError!Sexpr, // Function that implements it (e.g. sfIf)
+    func: *const fn (*Environ, []Sexpr) EvalError!void, // Function that implements it (e.g. sfIf)
     min: u32,         // Minimum # of arguments (2)
     max: u32,         // Maximum # of arguments (3)
 };
@@ -61,7 +62,7 @@ const SFormTable = [_]FunDisp{
     .{ .name = "unquote-splicing", .func = sfUnquote,    .min = 1, .max = 1, },
 };
 
-pub fn apply(env: *Environ, pid: SFormId, args: []Sexpr) EvalError!Sexpr {
+pub fn apply(env: *Environ, pid: SFormId, args: []Sexpr) EvalError!void {
     const nargs = args.len;
     const fd: *const FunDisp = &SFormTable[pid];
 
@@ -88,7 +89,7 @@ pub fn apply(env: *Environ, pid: SFormId, args: []Sexpr) EvalError!Sexpr {
     //     print("\n", .{});
     // }
 
-    // Call the special form and return its value
+    // Call the special form and leave its result on the stack
     return fd.func(env, args);
 }
 
@@ -143,28 +144,28 @@ fn getBody(lst: []Sexpr) !Sexpr {
     return makeVector(lst[0..lst.len]);
 }
 
-fn sfAnd(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfAnd(env: *Environ, args: []Sexpr) EvalError!void {
     // (and <exp>*)
     var val = sxTrue;
 
     for (args) |arg| {
-        val = try env.eval(arg);
+        val = try env.evalPop(arg);
         if (val == sxFalse)
             break;
     }
 
-    return val;
+    return stackPush(val);
 }
 
-fn sfBegin(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfBegin(env: *Environ, args: []Sexpr) EvalError!void {
     // (begin <sequence>)
     const bid  = try getBody(args[0..]) >> TagShift;
     const blen = vec.vecArray[bid];
     const body = vec.vecArray[bid+1..bid+1+blen];
-    return try env.evalBody(body);
+    return env.evalBody(body);
 }
 
-fn sfCond(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfCond(env: *Environ, args: []Sexpr) EvalError!void {
     // (cond <cond clause>+)
     // (cond <cond clause>* (else <tail sequence>))
 
@@ -172,13 +173,13 @@ fn sfCond(env: *Environ, args: []Sexpr) EvalError!Sexpr {
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         const val = try env.evalCondClause(args[i], i == (args.len - 1));
-        if (val != sxUndef) // sxUndef indicates that the clause test failed
-            return val;     // Found a true clause, return its value
+        if (val != sxUndef)         // sxUndef indicates that the clause test failed
+            return stackPush(val);  // Found a true clause, return its value
     }
-    return sxFalse; // No true clause
+    return stackPush(sxFalse); // No true clause
 }
 
-fn sfDefine(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfDefine(env: *Environ, args: []Sexpr) EvalError!void {
     // (define <var> <exp>)
     // Use the same (current) environment to evaluate the
     // expressions and bind the variables.
@@ -186,78 +187,80 @@ fn sfDefine(env: *Environ, args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, vname & TagMask);
     if (tag != .symbol)
         return EvalError.ExpectedSymbol;
-    var exp = try env.eval(args[1]);
+    var exp = try env.evalPop(args[1]);
     try env.setVar(vname >> TagShift, exp);
-    return sxVoid;
+    return stackPush(sxVoid);
 }
 
-fn sfIf(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfIf(env: *Environ, args: []Sexpr) EvalError!void {
     // (if <test-exp> <then-exp> <else-exp>)
     // (if <test-exp> <then-exp>)
-    var tstexp = try env.eval(args[0]);
+    var tstexp = try env.evalPop(args[0]);
     var exp: Sexpr = undefined;
     // Anything different from #f is true
     if (tstexp != sxFalse) {
-        exp = args[1];
+        exp = args[1];  // <then-exp>
     } else {
         if (args.len == 2)
             // (if <test-exp> <then-exp>)
-            return sxVoid;
-        exp = args[2];
+            return stackPush(sxVoid);
+        exp = args[2];  // <else-exp>
     }
-    return try env.eval(exp);
+    return env.eval(exp);
 }
 
-fn sfLambda(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfLambda(env: *Environ, args: []Sexpr) EvalError!void {
     // (lambda <formals> <body>)
     const formals = try getFormals(args[0]);
     const body    = try getBody(args[1..]);
-    return makeProc(env, formals, body);
+    const proc    = try makeProc(env, formals, body);
+    return stackPush(proc);
 }
 
-fn sfLet(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfLet(env: *Environ, args: []Sexpr) EvalError!void {
     // (let ((<var> <exp>)*) <body>)
     const newenv = try env.newBindings(args[0]);
     const bid  = try getBody(args[1..]) >> TagShift;
     const blen = vec.vecArray[bid];
     const body = vec.vecArray[bid+1..bid+1+blen];
-    return try newenv.evalBody(body);
+    return newenv.evalBody(body);
 }
 
-fn sfLetrec(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfLetrec(env: *Environ, args: []Sexpr) EvalError!void {
     // (letrec ((<var> <exp>)*) <body>)
     const newenv = try env.newBindingsRec(args[0]);
     const bid  = try getBody(args[1..]) >> TagShift;
     const blen = vec.vecArray[bid];
     const body = vec.vecArray[bid+1..bid+1+blen];
-    return try newenv.evalBody(body);
+    return newenv.evalBody(body);
 }
 
-fn sfLetstar(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfLetstar(env: *Environ, args: []Sexpr) EvalError!void {
     // (let* ((<var> <exp>)*) <body>)
     const newenv = try env.newBindingsStar(args[0]);
     const bid  = try getBody(args[1..]) >> TagShift;
     const blen = vec.vecArray[bid];
     const body = vec.vecArray[bid+1..bid+1+blen];
-    return try newenv.evalBody(body);
+    return newenv.evalBody(body);
 }
 
-fn sfOr(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfOr(env: *Environ, args: []Sexpr) EvalError!void {
     // (or <exp>*)
     var val = sxFalse;
 
     for (args) |arg| {
-        val = try env.eval(arg);
+        val = try env.evalPop(arg);
         if (val != sxFalse)
             break;
     }
 
-    return val;
+    return stackPush(val);
 }
 
-fn sfQuasiquote(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfQuasiquote(env: *Environ, args: []Sexpr) EvalError!void {
     // (quasiquote <exp>)
-    return QuasiquoteRec(env, args[0], 1);
+    const val = try QuasiquoteRec(env, args[0], 1);
+    return stackPush(val);
 }
 
 // Append list2 to list1
@@ -370,7 +373,7 @@ fn QuasiquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
 
 fn UnquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
     if (level == 0)
-        return try env.eval(arg);
+        return env.evalPop(arg);
 
     var tag = @intToEnum(PtrTag, arg & TagMask);
     if (tag != .pair or arg == nil)
@@ -406,14 +409,11 @@ fn UnquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
     return res;
 }
 
-fn sfQuote(env: *Environ, args: []Sexpr) EvalError!Sexpr {
+fn sfQuote(_: *Environ, args: []Sexpr) EvalError!void {
     // (quote <exp>)
-    _ = env;
-    return args[0];
+    return stackPush(args[0]);
 }
 
-fn sfUnquote(env: *Environ, args: []Sexpr) EvalError!Sexpr {
-    _ = env;
-    _ = args[0];
+fn sfUnquote(_: *Environ, _: []Sexpr) EvalError!void {
     return EvalError.UnquoteOutsideQuasiquote;
 }

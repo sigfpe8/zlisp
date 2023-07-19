@@ -164,7 +164,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = ">=",                  .func = pGrtEq,             .min = 1, .max = unlimited, },
 };
 
-pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
+pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!void {
     const nargs = args.len;
     const pt: *const FunDisp = &PrimitTable[pid];
 
@@ -181,8 +181,9 @@ pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!Sexpr {
         return EvalError.WrongNumberOfArguments;
     }
 
-    // Call the primitive and return its value
-    return pt.func(args);
+    // Call the primitive and push its result value
+    const val = try pt.func(args);
+    return eval.stackPush(val);
 }
 
 pub fn init() !void {

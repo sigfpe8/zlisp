@@ -77,6 +77,7 @@ pub const EvalError = error{
     OpenOutputFileFailed,
     OpenInputFileFailed,
     PortIsClosed,
+    EvalStackOverflow,
 };
 
 pub const SchemeError = ReadError || TokenError || ParsingError || EvalError;

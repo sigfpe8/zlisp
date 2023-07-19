@@ -1,3 +1,38 @@
+//! This module contains the core of the Scheme evaluator.
+//! It is implemented as a set of recursive Zig functions whose entry
+//! point is `env.eval(expr)`. The result of `env.eval(expr)` is left on
+//! the top of the stack. Since the stack is also used to pass arguments
+//! to procedures and special forms, these arguments have to be dropped
+//! and replaced by the resulting value. This is centralized in `evalList()`.
+//! Each procedure or special form called by `evalList()` leaves its result
+//! on top of its arguments. It is evalList() that replaces the arguments
+//! with the result.
+//! 
+//! Before calling (fun arg1 ... argn):
+//! 
+//!   +----+--... --+----+
+//!   |arg1|  ...   |argn|
+//!   +----+--... --+----+
+//! 
+//! Returning from `fun` (which returned `value`):
+//! 
+//!   +----+--... --+----+-----+
+//!   |arg1|  ...   |argn|value|
+//!   +----+--... --+----+-----+
+//! 
+//! Returning from evalList():
+//! 
+//!   +-----+
+//!   |value|
+//!   +-----+
+//! 
+//! In addition to `evalList()`, the function that implements the 
+//! primitive `apply`, `pApply()`, also needs to drop the arguments
+//! from the stack. However, instead of leaving the result of the
+//! function called by `apply` on the stack, `pApply()` needs to pop
+//! it and return it to its caller, `prim.apply()`, because this is
+//! the protocol used by all functions that implement primitives.
+
 const std = @import("std");
 const sexp = @import("sexpr.zig");
 const sym = @import("symbol.zig");
@@ -23,14 +58,16 @@ const nil = sexp.nil;
 const sxFalse = sexp.sxFalse;
 const sxTrue = sexp.sxTrue;
 const sxUndef = sexp.sxUndef;
-const print = std.debug.print;
-const printSexpr = @import("parser.zig").printSexpr;
+const sxVoid = sexp.sxVoid;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeProc = sexp.makeProc;
 const makeVector = sexp.makeVector;
 const MAXVECSIZE = vec.MAXVECSIZE;
 
 const EvalError = @import("error.zig").EvalError;
+const printSexpr = @import("parser.zig").printSexpr;
+const assert = std.debug.assert;
+const print = std.debug.print;
 
 // Scheme keywords (special forms)
 pub var kwElse:        SymbolId = undefined;
@@ -41,6 +78,29 @@ pub var kwUnquote_spl: SymbolId = undefined;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
+
+/// Evaluation stack
+var evalStack: [2048]Sexpr = undefined; // This will probably become an ArrayList[]
+var evalSP: usize = 0;           // Where next item will go
+const evalStackLen = evalStack.len;
+
+pub fn stackPush(item: Sexpr) callconv(.Inline) EvalError!void {
+    if (evalSP == evalStackLen)
+        return EvalError.EvalStackOverflow;
+    evalStack[evalSP] = item;
+    evalSP += 1;
+}
+
+pub fn stackPop() callconv(.Inline) Sexpr {
+    assert(evalSP > 0);
+    evalSP -= 1;
+    return evalStack[evalSP];
+}
+
+pub fn stackDrop() callconv(.Inline) void {
+    assert(evalSP > 0);
+    evalSP -= 1;
+}
 
 pub var globalEnv = Environ{
     .outer = null,
@@ -105,10 +165,15 @@ pub fn quoteExpr(name: SymbolId, expr: Sexpr) !Sexpr {
 //     return cell.cellArray[exp].dot.car;
 // }
 
-fn apply(newenv: *Environ, pid: ProcId, args: []Sexpr) !Sexpr {
+fn apply(pid: ProcId, args: []Sexpr) !void {
     const pt: *Proc = &proc.procArray[pid];
-    var env: *Environ = newenv; // New environment for the execution
-    env.outer = pt.env;         // Chain it to the closure environment
+
+    const env: *Environ = try allocator.create(Environ);
+    env.* = .{
+        .outer = pt.env,  // Chain it to the closure environment
+        .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
+    };
+
     // Both 'formals' and 'body' are vectors
     const fid = pt.formals >> TagShift;
     const bid = pt.body >> TagShift;
@@ -128,13 +193,13 @@ fn apply(newenv: *Environ, pid: ProcId, args: []Sexpr) !Sexpr {
         try env.setVar(formals[i] >> TagShift, args[i]);
     }
 
-    return try env.evalBody(body);
+    try env.evalBody(body);
 }
 
 /// Implements primitive `apply`
 /// (apply <proc> <arg1> ... <argn> <rest-args>)
 pub fn pApply(args: []Sexpr) EvalError!Sexpr {
-    var tvec: [MAXVECSIZE]Sexpr = undefined;
+    const arg1 = evalSP;    // Slot of 1st argument/result
 
     // Get the procedure
     const vproc = args[0];
@@ -146,11 +211,10 @@ pub fn pApply(args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedProcedure;
     }
 
-    // Copy arg1 ... argn to tvec[] (maybe none)
-    // No need to check length because args[] already comes from a local vector.
+    // Push arg1 ... argn (maybe zero items)
     var len: u32 = 0;
     for (args[1..args.len-1]) |arg| {
-        tvec[len] = arg;
+        try stackPush(arg);
         len += 1;
     }
 
@@ -159,31 +223,30 @@ pub fn pApply(args: []Sexpr) EvalError!Sexpr {
     if (@intToEnum(PtrTag, list & TagMask) != .pair)
         return EvalError.ExpectedList;
 
-    // Append <rest-args> to tvec[]
+    // Push items from <rest-args> list
     while (list != nil) {
-        if (len == MAXVECSIZE)
-            return EvalError.TooManyArguments;
-
         const arg = try car(list);
-        tvec[len] = arg;
+        try stackPush(arg);
         len += 1;
         list = try cdr(list);
     }
 
     switch (tag) {
         .primitive => {
-            return try prim.apply(id, tvec[0..len]);
+            try prim.apply(id, evalStack[arg1..arg1+len]);
         },
         .procedure => {
-            const newenv: *Environ = try allocator.create(Environ);
-            newenv.* = .{
-                .outer = null,
-                .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
-            };
-            return try apply(newenv, id, tvec[0..len]);
+            try apply(id, evalStack[arg1..arg1+len]);
         },
         else => unreachable,
     }
+
+    // Primitives must return their value.
+    // prim.apply() will push it again.
+    const val = stackPop();
+    // Drop the arguments
+    evalSP = arg1;
+    return val;
 }
 
 pub fn logError(err: anyerror) void {
@@ -199,13 +262,10 @@ pub const Environ = struct {
     // Map a variable (symbol) to a value (S-expr)
     assoc: std.AutoHashMap(SymbolId, Sexpr),
 
-    pub fn eval(self: *Self, sexpr: Sexpr) EvalError!Sexpr {
+    pub fn eval(self: *Self, sexpr: Sexpr) EvalError!void {
         const tag = @intToEnum(PtrTag, sexpr & TagMask);
         const exp = sexpr >> TagShift;
         switch (tag) {
-            .symbol => {
-                return self.getVar(exp);
-            },
             .pair => {
                 const dot = cell.cellArray[exp].dot;
                 const cdrtag = @intToEnum(PtrTag, dot.cdr & TagMask);
@@ -214,23 +274,31 @@ pub const Environ = struct {
                 if (cdrtag != .pair)
                     return EvalError.ExpectedList;
 
-                return try self.evalList(dot.car, dot.cdr);
+                try self.evalList(dot.car, dot.cdr);
+            },
+            .symbol => {
+                const val = try self.getVar(exp);
+                try stackPush(val);
             },
             else => {
                 // Auto-quote, i.e. evaluate to itself
-                return sexpr;
+                try stackPush(sexpr);
             },
         }
-        unreachable;
     }
 
-    // Evaluate procedure application/special form
-    pub fn evalList(self: *Self, pproc: Sexpr, pargs: Sexpr) EvalError!Sexpr {
-        var tvec: [MAXVECSIZE]Sexpr = undefined;
+    pub fn evalPop(self: *Self, sexpr: Sexpr) callconv(.Inline) EvalError!Sexpr {
+        try self.eval(sexpr);
+        return stackPop();
+    }
+
+    /// Evaluate procedure application/special form
+    pub fn evalList(self: *Self, pproc: Sexpr, pargs: Sexpr) EvalError!void {
+        const arg1 = evalSP;    // Slot of 1st argument/result
         var len: u32 = 0;
 
         // Evaluate the procedure
-        const vproc = try self.eval(pproc);
+        const vproc = try self.evalPop(pproc);
         const tag = @intToEnum(PtrTag, vproc & TagMask);
         var id = vproc >> TagShift;
         var isProc: bool = true;
@@ -244,40 +312,40 @@ pub const Environ = struct {
             return EvalError.ExpectedProcedure;
         }
 
-        // Evaluate the arguments and put them in a local array
+        // For procedures, evaluate the arguments and leave the results on the stack
+        // For special forms, push the non-evaluated arguments
         var list = pargs;
         while (list != nil) {
-            if (len == MAXVECSIZE)
-                return EvalError.TooManyArguments;
+            const arg = try car(list);
 
-            var arg = try car(list);
             if (isProc) {
-                arg = try self.eval(arg);
-            }
+                try self.eval(arg); // Leave result on the stack
+            } else
+                try stackPush(arg);  // Push non-evaluated argument
 
-            tvec[len] = arg;
             len += 1;
             list = try cdr(list);
         }
 
         switch (tag) {
             .special => {
-                return try spc.apply(self, id, tvec[0..len]);
+                try spc.apply(self, id, evalStack[arg1..arg1+len]);
             },
             .primitive => {
-                return try prim.apply(id, tvec[0..len]);
+                try prim.apply(id, evalStack[arg1..arg1+len]);
             },
             .procedure => {
-                const newenv: *Environ = try allocator.create(Environ);
-                newenv.* = .{
-                    .outer = null,
-                    .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
-                };
-                return try apply(newenv, id, tvec[0..len]);
+                try apply(id, evalStack[arg1..arg1+len]);
             },
             else => unreachable,
         }
-        unreachable;
+
+        // Replace the arguments with the result, unless there were no
+        // arguments and the result is already at the top of the stack.
+        if (evalSP != arg1 + 1) {
+            evalStack[arg1] = evalStack[evalSP-1];
+            evalSP = arg1 + 1;
+        }
     }
 
     pub fn setVar(self: *Self, symbol: SymbolId, expr: Sexpr) !void {
@@ -308,17 +376,20 @@ pub const Environ = struct {
         return EvalError.UndefinedVariable;
     }
 
-    pub fn evalBody(self: *Self, body: []Sexpr) EvalError!Sexpr {
-        var val: Sexpr = nil;
-        var i: usize = 0;
-    
-        // Evaluate all expressions in the sequence
-        // Return the value of the last one
-        while (i < body.len) : (i += 1) {
-            val  = try self.eval(body[i]);
+    pub fn evalBody(self: *Self, body: []Sexpr) EvalError!void {
+        if (body.len > 0) {
+            var i: usize = 0;
+            // Evaluate and discard all expressions but the last one
+            while (i < body.len - 1) : (i += 1) {
+                try self.eval(body[i]);
+                stackDrop();
+            }
+            // Leave the value of the last expression on the stack
+            try self.eval(body[i]);
+        } else {
+            // Nothing to evaluate; push a void value
+            try stackPush(sxVoid);
         }
-
-        return val;
     }
 
     pub fn evalBind(self: *Self, bindenv: *Self, lst: Sexpr) !void {
@@ -331,7 +402,7 @@ pub const Environ = struct {
         if (pcdr != nil)
             return EvalError.ExpectedTwoArguments;
         exp = try car(exp);
-        exp = try self.eval(exp);
+        exp = try self.evalPop(exp);
         try bindenv.setVar(vname >> TagShift, exp);
     }
 
@@ -348,7 +419,7 @@ pub const Environ = struct {
             if (!last)
                 return EvalError.ElseClauseMustBeLast;
         } else {
-            tst = try self.eval(tst);
+            tst = try self.evalPop(tst);
             if (tst == sxFalse)
                 return sxUndef;
         }
@@ -358,7 +429,7 @@ pub const Environ = struct {
         var lst = try cdr(list);
         var val = tst;
         while (lst != nil) {
-            val = try self.eval(try car(lst));
+            val = try self.evalPop(try car(lst));
             lst = try cdr(lst);
         }
 
