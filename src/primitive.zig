@@ -1,4 +1,5 @@
 const std = @import("std");
+const cel = @import("cell.zig");
 const sexp = @import("sexpr.zig");
 const eval = @import("eval.zig");
 const cell = @import("cell.zig");
@@ -6,6 +7,7 @@ const iop = @import("inpout.zig");
 const nbr = @import("number.zig");
 const str = @import("string.zig");
 const sym = @import("symbol.zig");
+const vec = @import("vector.zig");
 
 const Sexpr = sexp.Sexpr;
 const PtrTag = sexp.PtrTag;
@@ -51,6 +53,7 @@ const pWriteChar = iop.pWriteChar;
 
 const getAsInt = nbr.getAsInt;
 const getAsFloat = nbr.getAsFloat;
+const isExact = nbr.isExact;
 const pAngle = nbr.pAngle;
 const pDiv = nbr.pDiv;
 const pEvenPred = nbr.pEvenPred;
@@ -113,6 +116,9 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "current-output-port", .func = pCurrentOutputPort, .min = 0, .max = 0, },
     .{ .name = "display",             .func = pDisplay,           .min = 1, .max = 2, },
     .{ .name = "eof-object?",         .func = pEofPred,           .min = 1, .max = 1, },
+    .{ .name = "eq?",                 .func = pEqPred,            .min = 2, .max = 2, },
+    .{ .name = "eqv?",                .func = pEqvPred,           .min = 2, .max = 2, },
+    .{ .name = "equal?",              .func = pEqualPred,         .min = 2, .max = 2, },
     .{ .name = "even?",               .func = pEvenPred,          .min = 1, .max = 1, },
     .{ .name = "exact?",              .func = pExactPred,         .min = 1, .max = 1, },
     .{ .name = "imag-part",           .func = pImagPart,          .min = 1, .max = 1, },
@@ -198,6 +204,127 @@ pub fn init() !void {
 
 pub fn getName(id: PrimitId) []const u8 {
     return PrimitTable[id].name;
+}
+
+// -- Equivalence predicates ------------------------------
+fn pEqPred(args: []Sexpr) EvalError!Sexpr {
+    // (eq? <exp1> <exp2>)
+    const eql = areEq(args[0], args[1]);
+    return if (eql) sxTrue else sxFalse;
+}
+
+fn pEqvPred(args: []Sexpr) EvalError!Sexpr {
+    // (eqv? <exp1> <exp2>)
+    const eql = areEqv(args[0], args[1]);
+    return if (eql) sxTrue else sxFalse;
+}
+
+fn pEqualPred(args: []Sexpr) EvalError!Sexpr {
+    // (equal? <exp1> <exp2>)
+    const eql = areEqual(args[0], args[1]);
+    return if (eql) sxTrue else sxFalse;
+}
+
+/// Returns true if exp1 and exp2 are equal as in eq?
+fn areEq(exp1: Sexpr, exp2: Sexpr) callconv(.Inline) bool {
+    return exp1 == exp2;
+}
+
+/// Returns true if exp1 and exp2 are equivalent as in eqv?
+fn areEqv(exp1: Sexpr, exp2: Sexpr) bool {
+    if (areEq(exp1, exp2))
+        return true;
+
+    if (areNumbers(exp1, exp2)) {
+        const exact1 = isExact(exp1);
+        const exact2 = isExact(exp2);
+        if ((exact1 and exact2) or (!exact1 and !exact2))
+            return areEqvNum(exp1,exp2);
+    }
+
+    return false;        
+}
+
+/// Returns true if exp1 and exp2 are numbers
+fn areNumbers(exp1: Sexpr, exp2: Sexpr) bool {
+    const tag1 = exp1 & TagMask;
+    const tag2 = exp2 & TagMask;
+    const tagLo = @enumToInt(PtrTag.small_int);
+    const tagHi = @enumToInt(PtrTag.complex);
+    return (tag1 >= tagLo and tag1 <= tagHi and tag2 >= tagLo and tag2 <= tagHi);
+}
+
+/// Returns true if num1 and num2 are equivalent numbers as in eqv?
+fn areEqvNum(num1: Sexpr, num2: Sexpr) bool {
+    var args = [2]Sexpr { num1, num2 };
+    const eql = pEqual(&args) catch unreachable;
+    return eql == sxTrue;
+}
+
+/// Returns true if exp1 and exp1 are equal as in equal?
+fn areEqual(exp1: Sexpr, exp2: Sexpr) bool {
+    if (areEqv(exp1, exp2))
+        return true;
+
+    var tag1 = @intToEnum(PtrTag, exp1 & TagMask);
+    var tag2 = @intToEnum(PtrTag, exp2 & TagMask);
+
+    if (tag1 != tag2)
+        return false;
+
+    return switch(tag1) {
+        .pair => blkp: {    // Compare two lists
+            var list1 = exp1;
+            var list2 = exp2;
+            while (list1 != nil and list2 != nil) {
+                tag1 = @intToEnum(PtrTag, list1 & TagMask);
+                tag2 = @intToEnum(PtrTag, list2 & TagMask);
+                if (tag1 == tag2) {
+                    if (tag1 == .pair) {
+                        const dot1 = cel.cellArray[list1 >> TagShift].dot;
+                        const dot2 = cel.cellArray[list2 >> TagShift].dot;
+                        // Check if corresponing elements are equal
+                        if (!areEqual(dot1.car, dot2.car))
+                            break :blkp false;
+                        list1 = dot1.cdr;
+                        list2 = dot2.cdr;
+                    } else {
+                        break :blkp areEqual(list1, list2);
+                    }
+                } else {
+                    break :blkp false;
+                }
+            }
+            // Equal if both lists terminated at the same point
+            break :blkp list1 == nil and list2 == nil;
+        },
+        .vector => blkv: {  // Compare two vectors
+            const id1 = exp1 >> TagShift;
+            const id2 = exp2 >> TagShift;
+            const len = vec.vecArray[id1];
+            // Check if vectors have the same length
+            if (vec.vecArray[id2] != len)
+                return false;
+
+            // Check all corresponding elements
+            var i: usize = 1;
+            while (i <= len) : (i += 1) {
+                if (!areEqual(vec.vecArray[id1+i], vec.vecArray[id2+i]))
+                    break :blkv false;
+            }
+            break :blkv true;
+        },
+        .string => blks: {  // Compare two strings
+            const id1 = exp1 >> TagShift;
+            const id2 = exp2 >> TagShift;
+            const str1 = str.get(id1);
+            const str2 = str.get(id2);
+            if (str1.len != str2.len)
+                break :blks false;
+            break :blks std.mem.eql(u8, str1, str2);
+        },
+        else => false,
+    };
 }
 
 // -- Booleans --------------------------------------------

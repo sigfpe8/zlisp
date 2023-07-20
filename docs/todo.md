@@ -5,7 +5,6 @@
 * Continuations
 * Macros
 * Internal definitions
-* eq?, eqv?
 
 ## Implementation features
 

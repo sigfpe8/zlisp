@@ -1,3 +1,8 @@
+2023-07-20 - Implement equivalence predicates eq?, eqv? and equal?
+             These predicates are important in themselves, but they are 
+             especially needed in order to implement unit tests, which
+             will be coming soon.
+             
 2023-07-19 - Use external stack to evaluate expressions
              Previously, `env.eval(expr)` would return the result of evaluating
              `expr` in `env` as a simple value. Arguments to procedures and

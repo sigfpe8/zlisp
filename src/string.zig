@@ -52,7 +52,6 @@ pub fn free(sid: StringId) void {
     freeStrings = sid;
 }
 
-
 pub fn get(sid: StringId) []u8 {
     // assert(sid < stringsTable.len)
     const str = stringsTable.items[sid];

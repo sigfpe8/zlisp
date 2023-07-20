@@ -147,18 +147,6 @@ pub fn isReal(num: Sexpr) bool {
    };
 }
 
-/// Tests if a real number represented as an Sexpr is exact.
-/// Must not be called with complex types.
-pub fn isExactReal(num: Sexpr) bool {
-    const tag = @intToEnum(PtrTag, num & TagMask);
-
-   return switch (tag) {
-        .small_int, .integer, .rational => true,
-        .float => false,
-        else => unreachable,
-   };
-}
-
 /// Tests if a real number represented as an Sexpr is zero.
 /// Must not be called with complex types.
 pub fn isZeroReal(num: Sexpr) bool {
@@ -833,22 +821,36 @@ pub fn pComplexPred(args: []Sexpr) EvalError!Sexpr {
     return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
  }
 
+pub fn isExact(num: Sexpr) bool {
+    const ind = num >> TagShift;
+    const tag = @intToEnum(PtrTag, num & TagMask);
+
+    return switch (tag) {
+        .small_int, .integer, .rational => true,
+        .float => false,
+        .polar => isExact(cel.cellArray[ind].pol.mag) and
+                  isExact(cel.cellArray[ind].pol.ang),
+        .complex => isExact(cel.cellArray[ind].cmp.re) and
+                    isExact(cel.cellArray[ind].cmp.im),
+        else => unreachable,
+    };
+}
+
 pub fn pExactPred(args: []Sexpr) EvalError!Sexpr {
     // (exact? <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
     const tag = @intToEnum(PtrTag, exp & TagMask);
-    var exact: bool = false;
 
-   switch (tag) {
-        .small_int, .integer, .rational => exact = true,
-        .float => exact = false,
-        .polar => exact = isExactReal(cel.cellArray[ind].pol.mag) and
-                          isExactReal(cel.cellArray[ind].pol.ang),
-        .complex => exact = isExactReal(cel.cellArray[ind].cmp.re) and
-                            isExactReal(cel.cellArray[ind].cmp.im),
+    const exact = switch (tag) {
+        .small_int, .integer, .rational => true,
+        .float => false,
+        .polar => isExact(cel.cellArray[ind].pol.mag) and
+                  isExact(cel.cellArray[ind].pol.ang),
+        .complex => isExact(cel.cellArray[ind].cmp.re) and
+                    isExact(cel.cellArray[ind].cmp.im),
         else => return EvalError.ExpectedNumber,
-   }
+    };
 
     return if (exact) sxTrue else sxFalse;
  }
