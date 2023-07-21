@@ -39,7 +39,7 @@ pub const TokenError = error{
 };
 
 pub const EvalError = error{
-    UndefinedVariable,
+    UnboundVariable,
     LetrecUndefVariable,
     ExpectedOneArgument,
     ExpectedTwoArguments,

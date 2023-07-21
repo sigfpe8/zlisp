@@ -51,34 +51,33 @@ const SchemeError = erz.SchemeError;
 const TokenError = erz.TokenError;
 
 fn isSymbolStart(ch: u8) bool {
-    switch (ch) {
-        '$'...'&' => return true,   // $ % &
-        '*','+' => return true,
-        '-','/' => return true, 
-        ':' => return true,
-        '<'...'>' => return true,   // < = >
-        'A'...'Z' => return true,
-        '^','_' => return true,
-        'a'...'z' => return true,
-        '~' => return true,
-        else => return false,
-    }
-    return false;
+    return switch (ch) {
+        '$'...'&' => true,   // $ % &
+        '*','+' => true,
+        '-','/' => true, 
+        ':' => true,
+        '<'...'>' => true,   // < = >
+        'A'...'Z' => true,
+        '^','_' => true,
+        'a'...'z' => true,
+        '~' => true,
+        else => false,
+    };
 }
 
 fn isSymbolChar(ch: u8) bool {
-    switch (ch) {
-        '$'...'&' => return true,   // $ % &
-        '*','+' => return true,
-        '-'...':' => return true,   // - . / 0 1 2 3 4 5 6 7 8 9 :
-        '<'...'?' => return true,   // < = > ?
-        'A'...'Z' => return true,
-        '^','_' => return true,
-        'a'...'z' => return true,
-        '~' => return true,
-        else => return false,
-    }
-    return false;
+    return switch (ch) {
+        '!' => true,
+        '$'...'&' => true,   // $ % &
+        '*','+' => true,
+        '-'...':' => true,   // - . / 0 1 2 3 4 5 6 7 8 9 :
+        '<'...'?' => true,   // < = > ?
+        'A'...'Z' => true,
+        '^','_' => true,
+        'a'...'z' => true,
+        '~' => true,
+        else => false,
+    };
 }
 
 fn isRadixDigit(radix: u8, ch: u8) bool {

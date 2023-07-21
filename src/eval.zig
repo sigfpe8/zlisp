@@ -356,6 +356,27 @@ pub const Environ = struct {
         };
     }
 
+    pub fn setBangVar(self: *Self, symbol: SymbolId, expr: Sexpr) !void {
+        var oenv: ?*Environ = self;
+
+        // Find frame where variable is defined
+        while (oenv) |env| {
+            if (env.assoc.contains(symbol)) {   // Found it
+                // Try to set! it here but this could trigger an allocation error
+                env.assoc.put(symbol, expr) catch |err| {
+                    print("  {!}\n", .{err});
+                    return EvalError.DefineFailed;
+                };
+                return; // set! succeeded
+            }
+            // Try outer frame
+            oenv = env.outer;
+        }
+        // If not defined in any frame, give an error
+        print("  Variable '{s}' is not bound\n", .{sym.getName(symbol)});
+        return EvalError.UnboundVariable;
+    }
+
     pub fn getVar(self: *Self, symbol: SymbolId) !Sexpr {
         var oenv: ?*Environ = self;
 
@@ -372,8 +393,8 @@ pub const Environ = struct {
             oenv = env.outer;
         }
         // If not defined in any frame, give an error
-        print("  Variable '{s}' is undefined\n", .{sym.getName(symbol)});
-        return EvalError.UndefinedVariable;
+        print("  Variable '{s}' is not bound\n", .{sym.getName(symbol)});
+        return EvalError.UnboundVariable;
     }
 
     pub fn evalBody(self: *Self, body: []Sexpr) EvalError!void {

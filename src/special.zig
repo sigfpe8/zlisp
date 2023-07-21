@@ -58,6 +58,7 @@ const SFormTable = [_]FunDisp{
     .{ .name = "or",               .func = sfOr,         .min = 0, .max = unlimited, },
     .{ .name = "quasiquote",       .func = sfQuasiquote, .min = 1, .max = 1, },
     .{ .name = "quote",            .func = sfQuote,      .min = 1, .max = 1, },
+    .{ .name = "set!",             .func = sfSetBang,    .min = 2, .max = 2, },
     .{ .name = "unquote",          .func = sfUnquote,    .min = 1, .max = 1, },
     .{ .name = "unquote-splicing", .func = sfUnquote,    .min = 1, .max = 1, },
 };
@@ -412,6 +413,18 @@ fn UnquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
 fn sfQuote(_: *Environ, args: []Sexpr) EvalError!void {
     // (quote <exp>)
     return stackPush(args[0]);
+}
+
+fn sfSetBang(env: *Environ, args: []Sexpr) EvalError!void {
+    // (set! <var> <exp>)
+    // Variable <var> must already be bound in the current environment
+    const vname = args[0];
+    const tag = @intToEnum(PtrTag, vname & TagMask);
+    if (tag != .symbol)
+        return EvalError.ExpectedSymbol;
+    var exp = try env.evalPop(args[1]);
+    try env.setBangVar(vname >> TagShift, exp);
+    return stackPush(sxVoid);
 }
 
 fn sfUnquote(_: *Environ, _: []Sexpr) EvalError!void {
