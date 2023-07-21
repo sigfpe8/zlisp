@@ -135,6 +135,7 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "make-rectangular",    .func = pMakeRectangular,   .min = 2, .max = 2, },
     .{ .name = "negative?",           .func = pNegativePred,      .min = 1, .max = 1, },
     .{ .name = "newline",             .func = pNewline,           .min = 0, .max = 1, },
+    .{ .name = "not",                 .func = pNot,               .min = 1, .max = 1, },
     .{ .name = "null?",               .func = pNullPred,          .min = 1, .max = 1, },
     .{ .name = "number?",             .func = pNumPred,           .min = 1, .max = 1, },
     .{ .name = "odd?",                .func = pOddPred,           .min = 1, .max = 1, },
@@ -332,6 +333,10 @@ fn areEqual(exp1: Sexpr, exp2: Sexpr) bool {
 fn pBoolPred(args: []Sexpr) EvalError!Sexpr {
     const tag = @intToEnum(PtrTag, args[0] & TagMask);
     return if (tag == .boolean) sxTrue else sxFalse;
+}
+
+fn pNot(args: []Sexpr) EvalError!Sexpr {
+    return if (args[0] == sxFalse) sxTrue else sxFalse;
 }
 
 // -- Characters ------------------------------------------
