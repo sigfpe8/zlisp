@@ -103,30 +103,36 @@ pub fn makeInteger(val: i64) !Sexpr {
 }
 
 pub fn makeRational(num: i64, den: i64) !Sexpr {
-    if (den <= 0) {
-        return if (den == 0) EvalError.DivisionByZero else EvalError.InvalidDenominator;
-    }
+    if (den == 0)
+        return EvalError.DivisionByZero;
 
     if (num == 0)
         return makeInteger(0);
-    if (den == 1)
-        return makeInteger(num);
 
-    // Try to reduce to lowest terms (-2/4 --> -1/2)
     var rnum = num;
     var rden = den;
 
-    // Can't get the absolute value of minInt
-    if (num != std.math.minInt(i64)) {
-        const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
+    // Make sure denominator is > 0
+    if (rden < 0) {
+        // Cannot negate minInt
+        if (rnum == std.math.minInt(i64) or rden == std.math.minInt(i64))
+            return EvalError.InvalidDenominator;
+        rnum = -rnum;
+        rden = -rden;
+    }
+    
+    // Try to reduce to lowest terms (-2/4 --> -1/2)
+    if (rnum != std.math.minInt(i64)) { // Cannot get the absolute value of minInt
+        const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(rnum), std.math.absCast(rden)));
         if (gcd != 1) {
-            rnum = @divExact(num, gcd);
-            rden = @divExact(den, gcd);
-            // Is this is an integer? (e.g. 4/2 --> 2/1 --> 2)
-            if (rden == 1)
-                return makeInteger(rnum);
+            rnum = @divExact(rnum, gcd);
+            rden = @divExact(rden, gcd);
         }
     }
+
+    // Is this an integer in disguise?
+    if (rden == 1)
+        return makeInteger(rnum);
 
     const ptr = try Cell.alloc();
     cell.cellArray[ptr].rat.num = try makeInteger(rnum);

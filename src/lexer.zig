@@ -542,8 +542,10 @@ pub const Lexer = struct {
         self.nextChar();        // Skip /
         begin = self.cpos - 1;
         // if (!ascii.isDigit(self.cchar)) --> TODO: treat as symbol
-        if (!isRadixDigit(radix, self.cchar))
+        if (!isRadixDigit(radix, self.cchar)) {
+            self.finishToken();
             return SchemeError.InvalidDenominator;
+        }
 
         // Denominator
         while (isRadixDigit(radix, self.cchar))
@@ -764,6 +766,15 @@ pub const Lexer = struct {
         self.token = .string;
     }
 
+    fn finishToken(self: *Lexer) void {
+        // Scan until the end of current token
+        while (!ascii.isWhitespace(self.cchar) and self.cchar != 0 and self.cchar != ')') {
+            if (self.eof)
+                break;
+            self.nextChar();
+        }
+    }
+
     pub fn logError(self: *Lexer, err: anyerror) void {
         out.print("\nSyntax error in {s}:", .{ self.name });
         if (!self.isterm)
@@ -784,8 +795,12 @@ pub const Lexer = struct {
         }
         out.print("\n", .{});
 
-        // If not interactive terminal, signal EOF
-        if (!self.isterm)
+        // If interactive terminal, discard line, else signal EOF
+        if (self.isterm) {
+            self.cchar = 0;
+            self.cpos = self.line.len;
+        } else {
             self.eof = true;
+        }
     }
 };
