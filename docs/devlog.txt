@@ -1,3 +1,9 @@
+2023-07-24 - Implement `case` special form
+             This was relatively easy because of the previous work done for
+             `cond`. It seems that `case` exists only because it can be be
+             compiled efficiently, given that the <datum> items are known at
+             compile time. For interpreters it doesn't matter so much.
+
 2023-07-20 - Implement equivalence predicates eq?, eqv? and equal?
              These predicates are important in themselves, but they are 
              especially needed in order to implement unit tests, which

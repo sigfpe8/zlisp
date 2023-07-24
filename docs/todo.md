@@ -11,11 +11,11 @@
 * Garbage collector
 * Tail Call Optimizations
 
-## Basic primitives
+## Special forms
 
-* case
 * do
-* set!/set-car!/set-cdr!
+* set-car!/set-cdr!
+* Named let
 
 ## Library procedures
 

@@ -62,6 +62,7 @@ const sxVoid = sexp.sxVoid;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeProc = sexp.makeProc;
 const makeVector = sexp.makeVector;
+const areEqv = prim.areEqv;
 const MAXVECSIZE = vec.MAXVECSIZE;
 
 const EvalError = @import("error.zig").EvalError;
@@ -427,13 +428,53 @@ pub const Environ = struct {
         try bindenv.setVar(vname >> TagShift, exp);
     }
 
+    pub fn evalCaseClause(self: *Self, key: Sexpr, list:Sexpr, last: bool) EvalError!Sexpr {
+        // <case clause> -> ((<datum>+) <tail sequence>) |
+        //                  (else <tail sequence>)
+
+        // If <key> is found among the <datum> items, return the value of the last expression in <tail sequence>.
+        // Otherwise return sxUndef to indicate that no match was found in this clause.
+        var lst = try car(list);
+        const tag = @intToEnum(PtrTag, lst & TagMask);
+        if (tag == .symbol and (lst >> TagShift) == kwElse) {
+            if (!last)
+                return EvalError.ElseClauseMustBeLast;
+        } else {
+            if (tag != .pair)
+                return EvalError.ExpectedList;
+            // Compare <key> with all the <datum> in the list
+            while (lst != nil) {
+                const datum = try car(lst);
+                if (areEqv(key, datum)) {
+                    // Found matching datum
+                    break;
+                }
+                lst = try cdr(lst);
+            } else {
+                // No matching datum was found
+                return sxUndef;
+            }
+        }
+
+        // Either a mathing <datum> was found or this is an `else` clause
+        // Evaluate tail sequence
+        lst = try cdr(list);
+        var val = sxVoid;
+        while (lst != nil) {
+            val = try self.evalPop(try car(lst));
+            lst = try cdr(lst);
+        }
+
+        return val;
+    }
+
     pub fn evalCondClause(self: *Self, list:Sexpr, last: bool) EvalError!Sexpr {
         // <cond clause> -> (<test> <tail sequence>) |
         //                  (<test> => <exp>) |
         //                  (else <tail sequence>)
 
-        // If the <test> is true, return the value of the last expression in <tail sequence>
-        // Otherwise return sxUndef to indicate that the test failed
+        // If the <test> is true, return the value of the last expression in <tail sequence>.
+        // Otherwise return sxUndef to indicate that this clause failed.
         var tst = try car(list);
         const tag = @intToEnum(PtrTag, tst & TagMask);
         if (tag == .symbol and (tst >> TagShift) == kwElse) {

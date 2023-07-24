@@ -48,6 +48,7 @@ pub const SFormId = u32;
 const SFormTable = [_]FunDisp{
     .{ .name = "and",              .func = sfAnd,        .min = 0, .max = unlimited, },
     .{ .name = "begin",            .func = sfBegin,      .min = 2, .max = unlimited, },
+    .{ .name = "case",             .func = sfCase,       .min = 2, .max = unlimited, },
     .{ .name = "cond",             .func = sfCond,       .min = 1, .max = unlimited, },
     .{ .name = "define",           .func = sfDefine,     .min = 2, .max = 2, },
     .{ .name = "if",               .func = sfIf,         .min = 2, .max = 3, },
@@ -166,6 +167,20 @@ fn sfBegin(env: *Environ, args: []Sexpr) EvalError!void {
     return env.evalBody(body);
 }
 
+fn sfCase(env: *Environ, args: []Sexpr) EvalError!void {
+    // (case <key> <case clause>+)
+    // <case clause> -> ((<datum>+) <tail sequence>) |
+    //                  (else <tail sequence>)
+    const key = try env.evalPop(args[0]);
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const val = try env.evalCaseClause(key, args[i], i == (args.len - 1));
+        if (val != sxUndef)         // sxUndef indicates that a mathing datum was not found in the <case clause>
+            return stackPush(val);  // Found a matching datum, return its value
+    }
+    return stackPush(sxVoid); // No matching clause
+}
+
 fn sfCond(env: *Environ, args: []Sexpr) EvalError!void {
     // (cond <cond clause>+)
     // (cond <cond clause>* (else <tail sequence>))
@@ -177,7 +192,7 @@ fn sfCond(env: *Environ, args: []Sexpr) EvalError!void {
         if (val != sxUndef)         // sxUndef indicates that the clause test failed
             return stackPush(val);  // Found a true clause, return its value
     }
-    return stackPush(sxFalse); // No true clause
+    return stackPush(sxVoid); // No true clause
 }
 
 fn sfDefine(env: *Environ, args: []Sexpr) EvalError!void {

@@ -227,12 +227,12 @@ fn pEqualPred(args: []Sexpr) EvalError!Sexpr {
 }
 
 /// Returns true if exp1 and exp2 are equal as in eq?
-fn areEq(exp1: Sexpr, exp2: Sexpr) callconv(.Inline) bool {
+pub fn areEq(exp1: Sexpr, exp2: Sexpr) callconv(.Inline) bool {
     return exp1 == exp2;
 }
 
 /// Returns true if exp1 and exp2 are equivalent as in eqv?
-fn areEqv(exp1: Sexpr, exp2: Sexpr) bool {
+pub fn areEqv(exp1: Sexpr, exp2: Sexpr) bool {
     if (areEq(exp1, exp2))
         return true;
 
