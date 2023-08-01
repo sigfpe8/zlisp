@@ -37,8 +37,6 @@ const EvalError = @import("error.zig").EvalError;
 const getAsInt = nbr.getAsInt;
 const getSign = nbr.getSign;
 
-const MAXVECSIZE = vec.MAXVECSIZE;
-
 var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = ggpa.allocator();
 

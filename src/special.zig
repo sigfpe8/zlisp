@@ -26,7 +26,6 @@ const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeSpecialPtr = sexp.makeSpecialPtr;
 const makeProc = sexp.makeProc;
 const makeVector = sexp.makeVector;
-const MAXVECSIZE = vec.MAXVECSIZE;
 const car = eval.car;
 const cdr = eval.cdr;
 const cons = eval.cons;
@@ -116,25 +115,25 @@ pub fn getName(id: SFormId) []const u8 {
 // Puts them into a vector for easy access
 fn getFormals(lst: Sexpr) !Sexpr {
     var ptr = lst;
-    var tvec: [MAXVECSIZE]Sexpr = undefined;
-    var len: u32 = 0;
     var tag: PtrTag = @intToEnum(PtrTag, ptr & TagMask);
+    var len: u32 = 0;
+    const base = eval.stackGetSP();
+    defer eval.stackSetSP(base);
     
     if (tag != .pair)
         return EvalError.ExpectedList;
 
     while (ptr != nil) {
-        if (len == MAXVECSIZE)
-            return EvalError.TooManyFormals;
         const vname = try car(ptr);
         tag = @intToEnum(PtrTag, vname & TagMask);
         if (tag != .symbol)
             return EvalError.ExpectedVariable;
-        tvec[len] = vname;
+        try eval.stackPush(vname);
         len += 1;
         ptr = try cdr(ptr);
     }
 
+    const tvec = eval.stackGetSlice(base, len);
     return makeVector(tvec[0..len]);
 }
 

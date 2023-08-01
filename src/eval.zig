@@ -61,9 +61,7 @@ const sxUndef = sexp.sxUndef;
 const sxVoid = sexp.sxVoid;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeProc = sexp.makeProc;
-const makeVector = sexp.makeVector;
 const areEqv = prim.areEqv;
-const MAXVECSIZE = vec.MAXVECSIZE;
 
 const EvalError = @import("error.zig").EvalError;
 const printSexpr = @import("parser.zig").printSexpr;
@@ -82,9 +80,10 @@ const allocator = gpa.allocator();
 
 /// Evaluation stack
 var evalStack: [2048]Sexpr = undefined; // This will probably become an ArrayList[]
-var evalSP: usize = 0;           // Where next item will go
+var evalSP: usize = 0;                  // Where next item will go
 const evalStackLen = evalStack.len;
 
+/// Pushes one element on top of the stack
 pub fn stackPush(item: Sexpr) callconv(.Inline) EvalError!void {
     if (evalSP == evalStackLen)
         return EvalError.EvalStackOverflow;
@@ -92,15 +91,40 @@ pub fn stackPush(item: Sexpr) callconv(.Inline) EvalError!void {
     evalSP += 1;
 }
 
+/// Pops top element from the stack
 pub fn stackPop() callconv(.Inline) Sexpr {
     assert(evalSP > 0);
     evalSP -= 1;
     return evalStack[evalSP];
 }
 
-pub fn stackDrop() callconv(.Inline) void {
-    assert(evalSP > 0);
-    evalSP -= 1;
+/// Removes top `n` elements from the stack
+pub fn stackDrop(n: usize) callconv(.Inline) void {
+    assert(evalSP - n >= 0);
+    evalSP -= n;
+}
+
+/// Gets top stack index (SP)
+pub fn stackGetSP() callconv(.Inline) usize {
+    return evalSP;
+}
+
+/// Sets top stack index (SP) to given value 
+pub fn stackSetSP(sp: usize) callconv(.Inline) void {
+    evalSP = sp;
+}
+
+/// Returns stack slice from base to base + len
+pub fn stackGetSlice(base: usize, len: usize) callconv(.Inline) []Sexpr {
+    return evalStack[base .. base + len];
+}
+
+/// Move top of stack to `base` slot, unless it's already there.
+pub fn stackMoveTopDown(base: usize) callconv(.Inline) void {
+    if (evalSP != base + 1) {
+        evalStack[base] = evalStack[evalSP-1];
+        evalSP = base + 1;
+    }
 }
 
 pub var globalEnv = Environ{
@@ -200,7 +224,7 @@ fn apply(pid: ProcId, args: []Sexpr) !void {
 /// Implements primitive `apply`
 /// (apply <proc> <arg1> ... <argn> <rest-args>)
 pub fn pApply(args: []Sexpr) EvalError!Sexpr {
-    const arg1 = evalSP;    // Slot of 1st argument/result
+    const arg1 = stackGetSP();    // Slot of 1st argument/result
 
     // Get the procedure
     const vproc = args[0];
@@ -246,7 +270,7 @@ pub fn pApply(args: []Sexpr) EvalError!Sexpr {
     // prim.apply() will push it again.
     const val = stackPop();
     // Drop the arguments
-    evalSP = arg1;
+    stackSetSP(arg1);
     return val;
 }
 
@@ -295,7 +319,7 @@ pub const Environ = struct {
 
     /// Evaluate procedure application/special form
     pub fn evalList(self: *Self, pproc: Sexpr, pargs: Sexpr) EvalError!void {
-        const arg1 = evalSP;    // Slot of 1st argument/result
+        const arg1 = stackGetSP();    // Slot of 1st argument/result
         var len: u32 = 0;
 
         // Evaluate the procedure
@@ -343,10 +367,7 @@ pub const Environ = struct {
 
         // Replace the arguments with the result, unless there were no
         // arguments and the result is already at the top of the stack.
-        if (evalSP != arg1 + 1) {
-            evalStack[arg1] = evalStack[evalSP-1];
-            evalSP = arg1 + 1;
-        }
+        stackMoveTopDown(arg1);
     }
 
     pub fn setVar(self: *Self, symbol: SymbolId, expr: Sexpr) !void {
@@ -404,7 +425,7 @@ pub const Environ = struct {
             // Evaluate and discard all expressions but the last one
             while (i < body.len - 1) : (i += 1) {
                 try self.eval(body[i]);
-                stackDrop();
+                stackDrop(1);
             }
             // Leave the value of the last expression on the stack
             try self.eval(body[i]);

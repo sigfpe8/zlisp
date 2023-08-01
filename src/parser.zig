@@ -29,8 +29,6 @@ const quoteExpr = eval.quoteExpr;
 const ParsingError = erz.ParsingError;
 const SchemeError = erz.SchemeError;
 
-const MAXVECSIZE = vec.MAXVECSIZE;
-
 /// Parse all expressions in current input file until eof
 pub fn parseFile(lexer: *Lexer) void {
     while (!lexer.eof) {
@@ -171,19 +169,19 @@ fn parseList(lexer: *Lexer) anyerror!Sexpr {
 // Entry: token -> 1st token after #(
 // Exit:  token -> )
 fn parseVector(lexer: *Lexer) anyerror!Sexpr {
-    var tvec: [MAXVECSIZE]Sexpr = undefined;
-    var siz: u32 = 0;
+    var len: u32 = 0;
+    const base = eval.stackGetSP();
+    defer eval.stackSetSP(base);
 
     while (lexer.token != .rparens) {
         if (lexer.token == .end)
             return ParsingError.ExpectedRightParenthesis;
-        if (siz == MAXVECSIZE)
-            return ParsingError.VectorIsTooLong;
         const exp = try parseSexpr(lexer);
-        tvec[siz] = exp;
-        siz += 1;
+        try eval.stackPush(exp);
+        len += 1;
         try lexer.nextToken();
     }
 
-    return makeVector(tvec[0..siz]);
+    const tvec = eval.stackGetSlice(base, len);
+    return makeVector(tvec[0..len]);
 }
