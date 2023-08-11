@@ -15,6 +15,8 @@ pub const ReadError = error{
     SystemResources,
     Unexpected,
     WouldBlock,
+    NetNameDeleted,
+    NoSpaceLeft,
 };
 
 pub const ParsingError = error{
@@ -84,12 +86,12 @@ pub const SchemeError = ReadError || TokenError || ParsingError || EvalError;
 
 test "error sets" {
     print("\n", .{});
-    print("@errorToInt(ReadError.StreamTooLong)     = {d}\n", .{@errorToInt(ReadError.StreamTooLong)});
-    print("@errorToInt(anyerror.StreamTooLong)      = {d}\n", .{@errorToInt(anyerror.StreamTooLong)});
-    print("@errorToInt(SchemeError.StreamTooLong)   = {d}\n", .{@errorToInt(SchemeError.StreamTooLong)});
+    print("@errorToInt(ReadError.StreamTooLong)     = {d}\n", .{@intFromError(ReadError.StreamTooLong)});
+    print("@errorToInt(anyerror.StreamTooLong)      = {d}\n", .{@intFromError(anyerror.StreamTooLong)});
+    print("@errorToInt(SchemeError.StreamTooLong)   = {d}\n", .{@intFromError(SchemeError.StreamTooLong)});
 
     var err: u16 = 1;
     while (err < 100) : (err += 1) {
-        print("{d}  {!}\n", .{ err, @intToError(err) });
+        print("{d}  {!}\n", .{ err, @errorFromInt(err) });
     }
 }

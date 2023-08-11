@@ -148,7 +148,7 @@ pub fn cons(pcar: Sexpr, pcdr: Sexpr) !Sexpr {
 }
 
 pub fn car(sexpr: Sexpr) !Sexpr {
-    const tag = @intToEnum(PtrTag, sexpr & TagMask);
+    const tag: PtrTag = @enumFromInt(sexpr & TagMask);
     const exp = sexpr >> TagShift;
     if (tag != .pair)
         return EvalError.ExpectedPair;
@@ -156,7 +156,7 @@ pub fn car(sexpr: Sexpr) !Sexpr {
 }
 
 pub fn cdr(sexpr: Sexpr) !Sexpr {
-    const tag = @intToEnum(PtrTag, sexpr & TagMask);
+    const tag: PtrTag = @enumFromInt(sexpr & TagMask);
     const exp = sexpr >> TagShift;
     if (tag != .pair)
         return EvalError.ExpectedPair;
@@ -177,13 +177,13 @@ pub fn quoteExpr(name: SymbolId, expr: Sexpr) !Sexpr {
 // fn cadr(sexpr: Sexpr) !Sexpr {
 //     var ptr = sexpr;
 //     // cdr
-//     var tag = @intToEnum(PtrTag, ptr & TagMask);
+//     var tag = @enumFromInt(ptr & TagMask);
 //     var exp = ptr >> TagShift;
 //     if (tag != .pair)
 //         return EvalError.ExpectedPair;
 //     ptr = cell.cellArray[exp].dot.cdr;
 //     // car
-//     tag = @intToEnum(PtrTag, ptr & TagMask);
+//     tag = @enumFromInt(ptr & TagMask);
 //     exp = ptr >> TagShift;
 //     if (tag != .pair)
 //         return EvalError.ExpectedPair;
@@ -228,7 +228,7 @@ pub fn pApply(args: []Sexpr) EvalError!Sexpr {
 
     // Get the procedure
     const vproc = args[0];
-    const tag = @intToEnum(PtrTag, vproc & TagMask);
+    const tag: PtrTag = @enumFromInt(vproc & TagMask);
     const id = vproc >> TagShift;
 
     if (tag != .primitive and tag != .procedure) {
@@ -245,7 +245,7 @@ pub fn pApply(args: []Sexpr) EvalError!Sexpr {
 
     // Last argument (<rest-args>) must be a list
     var list = args[args.len - 1];
-    if (@intToEnum(PtrTag, list & TagMask) != .pair)
+    if (@as(PtrTag, @enumFromInt(list & TagMask)) != .pair)
         return EvalError.ExpectedList;
 
     // Push items from <rest-args> list
@@ -288,12 +288,12 @@ pub const Environ = struct {
     assoc: std.AutoHashMap(SymbolId, Sexpr),
 
     pub fn eval(self: *Self, sexpr: Sexpr) EvalError!void {
-        const tag = @intToEnum(PtrTag, sexpr & TagMask);
+        const tag: PtrTag = @enumFromInt(sexpr & TagMask);
         const exp = sexpr >> TagShift;
         switch (tag) {
             .pair => {
                 const dot = cell.cellArray[exp].dot;
-                const cdrtag = @intToEnum(PtrTag, dot.cdr & TagMask);
+                const cdrtag: PtrTag = @enumFromInt(dot.cdr & TagMask);
 
                 // Must be a proper list
                 if (cdrtag != .pair)
@@ -324,12 +324,12 @@ pub const Environ = struct {
 
         // Evaluate the procedure
         const vproc = try self.evalPop(pproc);
-        const tag = @intToEnum(PtrTag, vproc & TagMask);
+        const tag: PtrTag = @enumFromInt(vproc & TagMask);
         var id = vproc >> TagShift;
         var isProc: bool = true;
 
         // Special form?
-        if (tag == .special and @intToEnum(SpecialTag, id & SpecialTagMask) == .form) {
+        if (tag == .special and @as(SpecialTag, @enumFromInt(id & SpecialTagMask)) == .form) {
             id = id >> SpecialTagShift;
             isProc = false;
         } else if (tag != .primitive and tag != .procedure) {
@@ -437,7 +437,7 @@ pub const Environ = struct {
 
     pub fn evalBind(self: *Self, bindenv: *Self, lst: Sexpr) !void {
         const vname = try car(lst);
-        const tag = @intToEnum(PtrTag, vname & TagMask);
+        const tag: PtrTag = @enumFromInt(vname & TagMask);
         if (tag != .symbol)
             return EvalError.ExpectedSymbol;
         var exp = try cdr(lst);
@@ -456,7 +456,7 @@ pub const Environ = struct {
         // If <key> is found among the <datum> items, return the value of the last expression in <tail sequence>.
         // Otherwise return sxUndef to indicate that no match was found in this clause.
         var lst = try car(list);
-        const tag = @intToEnum(PtrTag, lst & TagMask);
+        const tag: PtrTag = @enumFromInt(lst & TagMask);
         if (tag == .symbol and (lst >> TagShift) == kwElse) {
             if (!last)
                 return EvalError.ElseClauseMustBeLast;
@@ -497,7 +497,7 @@ pub const Environ = struct {
         // If the <test> is true, return the value of the last expression in <tail sequence>.
         // Otherwise return sxUndef to indicate that this clause failed.
         var tst = try car(list);
-        const tag = @intToEnum(PtrTag, tst & TagMask);
+        const tag: PtrTag = @enumFromInt(tst & TagMask);
         if (tag == .symbol and (tst >> TagShift) == kwElse) {
             if (!last)
                 return EvalError.ElseClauseMustBeLast;
@@ -560,7 +560,7 @@ pub const Environ = struct {
             // Pre-bind each variable to 'undefined'
             const bind = try car(lst);
             const vname = try car(bind);
-            const tag = @intToEnum(PtrTag, vname & TagMask);
+            const tag: PtrTag = @enumFromInt(vname & TagMask);
             if (tag != .symbol)
                 return EvalError.ExpectedSymbol;
             try newenv.setVar(vname >> TagShift, sxUndef);

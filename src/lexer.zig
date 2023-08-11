@@ -705,7 +705,7 @@ pub const Lexer = struct {
         self.nextChar();            // Skip it
 
         // Check if this is #\name
-        if (ascii.isAlphabetic(@truncate(u8, self.xvalue))) {
+        if (ascii.isAlphabetic(@truncate(self.xvalue))) {
             const begin = self.cpos - 2;
             while (ascii.isAlphabetic(self.cchar))
                 self.nextChar();

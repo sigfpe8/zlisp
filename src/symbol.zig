@@ -43,7 +43,7 @@ const SymbolError = error{
 // different environments, but its id is always the same.
 
 pub fn intern(symbol: []const u8) !SymbolId {
-    const len: u8 = @truncate(u8, symbol.len);
+    const len: u8 = @truncate(symbol.len);
     // print("intern('{s}'): ", .{symbol});
 
     // If the symbol exists in sym_table[], return its value

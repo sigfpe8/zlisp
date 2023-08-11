@@ -44,9 +44,9 @@ pub const TagShift = 4;
 pub const sxFalse = makeTaggedPtr(0, .boolean);
 pub const sxTrue  = makeTaggedPtr(1, .boolean);
 pub const sxNullVec = makeTaggedPtr(0, .vector);
-pub const sxEof = makeTaggedPtr(@enumToInt(SpecialTag.eof), .special);
-pub const sxUndef = makeTaggedPtr(@enumToInt(SpecialTag.undef), .special);
-pub const sxVoid = makeTaggedPtr(@enumToInt(SpecialTag.tvoid), .special);
+pub const sxEof = makeTaggedPtr(@intFromEnum(SpecialTag.eof), .special);
+pub const sxUndef = makeTaggedPtr(@intFromEnum(SpecialTag.undef), .special);
+pub const sxVoid = makeTaggedPtr(@intFromEnum(SpecialTag.tvoid), .special);
 pub const nil = makeTaggedPtr(0, .pair); // == 0 a.k.a. '()
 
 pub const PtrTag = enum { pair,         // (a . b)
@@ -74,11 +74,11 @@ pub const SpecialTagShift = 3;
 pub const Sexpr = TaggedPtr;
 
 pub fn makeTaggedPtr(ptr: UntaggedPtr, tag: PtrTag) TaggedPtr {
-    return (ptr << TagShift) | @enumToInt(tag);
+    return (ptr << TagShift) | @intFromEnum(tag);
 }
 
 pub fn makeSpecialPtr(ptr: UntaggedPtr, tag: SpecialTag) TaggedPtr {
-    const spc = (ptr << SpecialTagShift) | @enumToInt(tag);
+    const spc = (ptr << SpecialTagShift) | @intFromEnum(tag);
     return makeTaggedPtr(spc, .special);
 }
 
@@ -92,8 +92,8 @@ pub fn makePair(pcar: Sexpr, pcdr: Sexpr) !Sexpr {
 pub fn makeInteger(val: i64) !Sexpr {
     if (val >= minSmallInt and val <= maxSmallInt) {
         // Small immediate integer (i28)
-        const sval = @truncate(UntaggedInt, val);
-        return makeTaggedPtr(@bitCast(UntaggedPtr, sval), .small_int);
+        const sval: UntaggedInt = @truncate(val);
+        return makeTaggedPtr(@bitCast(sval), .small_int);
     } else {
         // Full i64 integer
         const index = try Cell.alloc();
@@ -123,7 +123,7 @@ pub fn makeRational(num: i64, den: i64) !Sexpr {
     
     // Try to reduce to lowest terms (-2/4 --> -1/2)
     if (rnum != std.math.minInt(i64)) { // Cannot get the absolute value of minInt
-        const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(rnum), std.math.absCast(rden)));
+        const gcd: i64 = @bitCast(std.math.gcd(std.math.absCast(rnum), std.math.absCast(rden)));
         if (gcd != 1) {
             rnum = @divExact(rnum, gcd);
             rden = @divExact(rden, gcd);
@@ -147,7 +147,7 @@ pub fn makeFloat(val: f64) !Sexpr {
 }
 
 pub fn makeVector(tvec: []Sexpr) !Sexpr {
-    const len: u32 = @truncate(u32, tvec.len);
+    const len: u32 = @truncate(tvec.len);
     if (len == 0)
         return sxNullVec;
     const id = try vec.alloc(len);
@@ -165,8 +165,8 @@ pub fn makeProc(env: *Environ, formals: Sexpr, body: Sexpr) !Sexpr {
 }
 
 pub fn makeChar(code: i64) Sexpr {
-    const val = @truncate(UntaggedInt, code);
-    return makeTaggedPtr(@bitCast(UntaggedPtr, val), .char);
+    const val: UntaggedInt = @truncate(code);
+    return makeTaggedPtr(@bitCast(val), .char);
 }
 
 pub fn makePolar(mag: Sexpr, ang: Sexpr) !Sexpr {
@@ -190,5 +190,5 @@ pub fn makeComplex(re: Sexpr, im: Sexpr) !Sexpr {
 }
 
 pub fn makePort(id: PortId) Sexpr {
-    return makeTaggedPtr(@bitCast(UntaggedPtr, id), .port);
+    return makeTaggedPtr(@bitCast(id), .port);
 }

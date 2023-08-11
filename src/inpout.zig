@@ -142,7 +142,7 @@ pub fn pOpenInputFile(args: []Sexpr) EvalError!Sexpr {
     // (open-input-file <exp>)
     const arg = args[0];
     const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .string)
         return EvalError.ExpectedString;
 
@@ -240,7 +240,7 @@ pub fn pLoad(args: []Sexpr) EvalError!Sexpr {
     // (load <exp>)
     const arg = args[0];
     const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .string)
         return EvalError.ExpectedString;
 
@@ -261,14 +261,14 @@ pub fn loadFile(path: []const u8) void {
 }
 
 fn newInputPort(reader: *Lexer) !PortId {
-    const pid = @truncate(PortId, portsTable.items.len);
+    const pid: PortId = @truncate(portsTable.items.len);
     try portsTable.append(.{ .reader = reader });
     return pid;
 }
 
 fn isInputPort(arg: Sexpr) bool {
     const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .port)
         return false;
     switch (portsTable.items[exp]) {
@@ -314,7 +314,7 @@ pub fn pOpenOutputFile(args: []Sexpr) EvalError!Sexpr {
     // (open-output-file <exp>)
     const arg = args[0];
     const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .string)
         return EvalError.ExpectedString;
 
@@ -360,10 +360,10 @@ pub fn pDisplay(args: []Sexpr) EvalError!Sexpr {
 
     const arg = args[0];
     const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     switch (tag) {
         .char => {
-            const ch = @truncate(u8, exp);
+            const ch: u8 = @truncate(exp);
             print("{c}", .{ch});
         },
         .string => {
@@ -439,8 +439,8 @@ pub fn pWriteChar(args: []Sexpr) EvalError!Sexpr {
 
     // For now, just ASCII characters
     const arg = args[0];
-    const tag = @intToEnum(PtrTag, arg & TagMask);
-    const exp = @truncate(u8, arg >> TagShift);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
+    const exp: u8 = @truncate(arg >> TagShift);
     if (tag != .char)
         return EvalError.ExpectedCharacter;
     
@@ -455,11 +455,11 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
         print("()", .{});
         return;
     }
-    const tag = @intToEnum(PtrTag, sexpr & TagMask);
+    const tag: PtrTag = @enumFromInt(sexpr & TagMask);
     const exp = sexpr >> TagShift;
     switch (tag) {
         .small_int => {
-            const val: i64 = @as(i64, @bitCast(TaggedInt, sexpr)) >> TagShift;
+            const val: i64 = @as(i64, @as(TaggedInt, @bitCast(sexpr))) >> TagShift;
             print("{d}", .{val});
         },
         .integer => {
@@ -503,7 +503,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
             print("#{s}", .{if (exp == 0) "f" else "t"});
         },
         .char => {
-            const code = @truncate(u8, exp);
+            const code: u8 = @truncate(exp);
             if (chr.nameFromCode(code)) |name| {
                 print("#\\{s}", .{name});
             } else {
@@ -530,7 +530,7 @@ pub fn printSexpr(sexpr: Sexpr, quoted: bool) void {
                 // Don't print void
             } else if (sexpr == sxEof) {
                 print("#<eof>", .{});
-            } else if (@intToEnum(SpecialTag, exp & SpecialTagMask) == .form) {
+            } else if (@as(SpecialTag, @enumFromInt(exp & SpecialTagMask)) == .form) {
                 print("#<special-form:{s}>", .{spc.getName(exp >> SpecialTagShift)});
             } else {
                 print("#<special:unknown:{x}>", .{exp});
@@ -579,7 +579,7 @@ const printI     = 0b10000; // im != 0 so print "i"
 ///          0 otherwise
 fn isUnit(num: Sexpr) i64 {
     var int: i64 = undefined;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
         .small_int, .integer => {
             int = getAsInt(num);
         },
@@ -630,7 +630,7 @@ fn printList(sexpr: Sexpr) void {
     if (sexpr == nil)
         return;
     print("{s}", .{" "});
-    const tag = @intToEnum(PtrTag, sexpr & TagMask);
+    const tag: PtrTag = @enumFromInt(sexpr & TagMask);
     if (tag == .pair) { // (A B...)
         const dot = cel.cellArray[sexpr >> TagShift].dot;
         printSexpr(dot.car, false);
@@ -642,14 +642,14 @@ fn printList(sexpr: Sexpr) void {
 }
 
 fn newOutputPort(writer: *Printer) !PortId {
-    const pid = @truncate(PortId, portsTable.items.len);
+    const pid: PortId = @truncate(portsTable.items.len);
     try portsTable.append(.{ .writer = writer });
     return pid;
 }
 
 fn isOutputPort(arg: Sexpr) bool {
     const exp = arg >> TagShift;
-    const tag = @intToEnum(PtrTag, arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .port)
         return false;
     switch (portsTable.items[exp]) {

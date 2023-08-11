@@ -29,20 +29,20 @@ pub fn deinit() void {
 
 pub fn add(str: []const u8) !StringId {
     // Next string offset is at the end of the current array
-    const off: StringOff = @truncate(StringOff, bytesTable.items.len);
+    const off: StringOff = @truncate(bytesTable.items.len);
     try bytesTable.appendSlice(str);
     var sid: StringId = 0;
 
     if (freeStrings == 0) {
         // Next id is at the end of the current array
-        sid = @truncate(StringId, stringsTable.items.len);
+        sid = @truncate(stringsTable.items.len);
     } else {
         // Reuse id from the free list
         sid = freeStrings;
         freeStrings = stringsTable.items[sid].off;
     }
 
-    try stringsTable.append(.{ .off = off, .len = @truncate(u32,str.len), });
+    try stringsTable.append(.{ .off = off, .len = @as(u32, @truncate(str.len)), });
     return sid;
 }
 

@@ -96,11 +96,11 @@ pub fn apply(env: *Environ, pid: SFormId, args: []Sexpr) EvalError!void {
 
 pub fn init() !void {
     // Bind each special form symbol (e.g. "if") to its index in SFormTable[]
-    for (SFormTable) |fd, i| {
+    for (SFormTable, 0..) |fd, i| {
         // fd: FunDisp
         // i:  SFormId
         const id: SymbolId = try sym.intern(fd.name);
-        const exp = makeSpecialPtr(@truncate(UntaggedPtr, i), .form);
+        const exp = makeSpecialPtr(@truncate(i), .form);
 
         // print("[{d}] = \"{s}\", exp = {x}\n", .{i, fd.name, exp});
         try eval.globalEnv.setVar(id, exp);
@@ -115,7 +115,7 @@ pub fn getName(id: SFormId) []const u8 {
 // Puts them into a vector for easy access
 fn getFormals(lst: Sexpr) !Sexpr {
     var ptr = lst;
-    var tag: PtrTag = @intToEnum(PtrTag, ptr & TagMask);
+    var tag: PtrTag = @enumFromInt(ptr & TagMask);
     var len: u32 = 0;
     const base = eval.stackGetSP();
     defer eval.stackSetSP(base);
@@ -125,7 +125,7 @@ fn getFormals(lst: Sexpr) !Sexpr {
 
     while (ptr != nil) {
         const vname = try car(ptr);
-        tag = @intToEnum(PtrTag, vname & TagMask);
+        tag = @enumFromInt(vname & TagMask);
         if (tag != .symbol)
             return EvalError.ExpectedVariable;
         try eval.stackPush(vname);
@@ -199,7 +199,7 @@ fn sfDefine(env: *Environ, args: []Sexpr) EvalError!void {
     // Use the same (current) environment to evaluate the
     // expressions and bind the variables.
     const vname = args[0];
-    const tag = @intToEnum(PtrTag, vname & TagMask);
+    const tag: PtrTag = @enumFromInt(vname & TagMask);
     if (tag != .symbol)
         return EvalError.ExpectedSymbol;
     var exp = try env.evalPop(args[1]);
@@ -299,13 +299,13 @@ const QqRes = union(enum) {
 
 fn qqRec(env: *Environ, arg: Sexpr, level: usize) EvalError!QqRes {
     var qval = arg;
-    var tag = @intToEnum(PtrTag, arg & TagMask);
+    var tag: PtrTag = @enumFromInt(arg & TagMask);
     var splicing = false;
     var foundQuote = false;
 
     if (tag == .pair) {
         var qcar: Sexpr = try car(arg);
-        tag = @intToEnum(PtrTag, qcar & TagMask);
+        tag = @enumFromInt(qcar & TagMask);
         qcar = qcar >> TagShift;
         if (tag == .symbol) {
             if (qcar == eval.kwQuasiquote or qcar == eval.kwUnquote or qcar == eval.kwUnquote_spl or qcar == eval.kwQuote) {
@@ -324,7 +324,7 @@ fn qqRec(env: *Environ, arg: Sexpr, level: usize) EvalError!QqRes {
                         qval = try quoteExpr(eval.kwUnquote, qval);
                 } else if (qcar == eval.kwUnquote_spl) {    // (unquote-splicing qarg)
                     qval = try UnquoteRec(env, qarg, level - 1);
-                    tag = @intToEnum(PtrTag, qval & TagMask);
+                    tag = @enumFromInt(qval & TagMask);
                     if (tag != .pair)
                         return EvalError.UnquoteSplicingMustBeList;
                     if (level > 1) {
@@ -354,7 +354,7 @@ fn QuasiquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
 // printSexpr(arg, true) catch {};
 // print("\n", .{});
 
-    var tag = @intToEnum(PtrTag, arg & TagMask);
+    var tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .pair or arg == nil)
         return arg;
 
@@ -390,7 +390,7 @@ fn UnquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
     if (level == 0)
         return env.evalPop(arg);
 
-    var tag = @intToEnum(PtrTag, arg & TagMask);
+    var tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .pair or arg == nil)
         return arg;
 
@@ -433,7 +433,7 @@ fn sfSetBang(env: *Environ, args: []Sexpr) EvalError!void {
     // (set! <var> <exp>)
     // Variable <var> must already be bound in the current environment
     const vname = args[0];
-    const tag = @intToEnum(PtrTag, vname & TagMask);
+    const tag: PtrTag = @enumFromInt(vname & TagMask);
     if (tag != .symbol)
         return EvalError.ExpectedSymbol;
     var exp = try env.evalPop(args[1]);

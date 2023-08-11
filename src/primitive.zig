@@ -195,10 +195,10 @@ pub fn apply(pid: PrimitId, args: []Sexpr) EvalError!void {
 
 pub fn init() !void {
     // Bind each primitive symbol (e.g. "car") to its index in PrimitTable
-    for (PrimitTable) |p, i| {
+    for (PrimitTable, 0..) |p, i| {
         // i: PrimitId
         const id: SymbolId = try sym.intern(p.name);
-        const exp = makeTaggedPtr(@truncate(UntaggedPtr, i), .primitive);
+        const exp = makeTaggedPtr(@as(UntaggedPtr, @truncate(i)), .primitive);
         try eval.globalEnv.setVar(id, exp);
     }
 }
@@ -250,8 +250,8 @@ pub fn areEqv(exp1: Sexpr, exp2: Sexpr) bool {
 fn areNumbers(exp1: Sexpr, exp2: Sexpr) bool {
     const tag1 = exp1 & TagMask;
     const tag2 = exp2 & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.complex);
+    const tagLo = @intFromEnum(PtrTag.small_int);
+    const tagHi = @intFromEnum(PtrTag.complex);
     return (tag1 >= tagLo and tag1 <= tagHi and tag2 >= tagLo and tag2 <= tagHi);
 }
 
@@ -267,8 +267,8 @@ fn areEqual(exp1: Sexpr, exp2: Sexpr) bool {
     if (areEqv(exp1, exp2))
         return true;
 
-    var tag1 = @intToEnum(PtrTag, exp1 & TagMask);
-    var tag2 = @intToEnum(PtrTag, exp2 & TagMask);
+    var tag1: PtrTag = @enumFromInt(exp1 & TagMask);
+    var tag2: PtrTag = @enumFromInt(exp2 & TagMask);
 
     if (tag1 != tag2)
         return false;
@@ -278,8 +278,8 @@ fn areEqual(exp1: Sexpr, exp2: Sexpr) bool {
             var list1 = exp1;
             var list2 = exp2;
             while (list1 != nil and list2 != nil) {
-                tag1 = @intToEnum(PtrTag, list1 & TagMask);
-                tag2 = @intToEnum(PtrTag, list2 & TagMask);
+                tag1 = @enumFromInt(list1 & TagMask);
+                tag2 = @enumFromInt(list2 & TagMask);
                 if (tag1 == tag2) {
                     if (tag1 == .pair) {
                         const dot1 = cel.cellArray[list1 >> TagShift].dot;
@@ -331,7 +331,7 @@ fn areEqual(exp1: Sexpr, exp2: Sexpr) bool {
 // -- Booleans --------------------------------------------
 // (boolean? <exp>)
 fn pBoolPred(args: []Sexpr) EvalError!Sexpr {
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .boolean) sxTrue else sxFalse;
 }
 
@@ -342,14 +342,14 @@ fn pNot(args: []Sexpr) EvalError!Sexpr {
 // -- Characters ------------------------------------------
 fn pCharPred(args: []Sexpr) EvalError!Sexpr {
     // (char? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .char) sxTrue else sxFalse;
 }
 
 fn pCharToInt(args: []Sexpr) EvalError!Sexpr {
     // (char->integer <char>)
     const val = args[0];
-    const tag = @intToEnum(PtrTag, val & TagMask);
+    const tag: PtrTag = @enumFromInt(val & TagMask);
     if (tag != .char)
         return EvalError.ExpectedCharacter;
     return makeInteger(val >> TagShift);
@@ -357,7 +357,7 @@ fn pCharToInt(args: []Sexpr) EvalError!Sexpr {
 
 fn pIntToChar(args: []Sexpr) EvalError!Sexpr {
     // (integer->char <code>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     if (tag != .small_int and tag != .integer)
         return EvalError.ExpectedInteger;
     const code = getAsInt(args[0]);
@@ -372,7 +372,7 @@ fn pListPred(args: []Sexpr) EvalError!Sexpr {
     var arg = args[0];
 
     while (arg != nil) {
-        const tag = @intToEnum(PtrTag, arg & TagMask);
+        const tag: PtrTag = @enumFromInt(arg & TagMask);
         if (tag != .pair)
             return sxFalse;
         arg = cell.cellArray[arg >> TagShift].dot.cdr;
@@ -383,7 +383,7 @@ fn pListPred(args: []Sexpr) EvalError!Sexpr {
 
 fn pPairPred(args: []Sexpr) EvalError!Sexpr {
     // (pair? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .pair) sxTrue else sxFalse;
 }
 
@@ -395,7 +395,7 @@ fn pNullPred(args: []Sexpr) EvalError!Sexpr {
 fn pCar(args: []Sexpr) EvalError!Sexpr {
     // (car <pair>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     if (tag != .pair)
         return EvalError.ExpectedPair;
     return cell.cellArray[exp >> TagShift].dot.car;
@@ -404,7 +404,7 @@ fn pCar(args: []Sexpr) EvalError!Sexpr {
 fn pCdr(args: []Sexpr) EvalError!Sexpr {
     // (cdr <pair>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     if (tag != .pair)
         return EvalError.ExpectedPair;
     return cell.cellArray[exp >> TagShift].dot.cdr;
@@ -421,7 +421,7 @@ fn pLength(args: []Sexpr) EvalError!Sexpr {
     var len: i64 = 0;
 
     while (list != nil) {
-        const tag = @intToEnum(PtrTag, list & TagMask);
+        const tag: PtrTag = @enumFromInt(list & TagMask);
         if (tag != .pair)
             return EvalError.ExpectedList;
         len += 1;
@@ -449,7 +449,7 @@ fn pReverse(args: []Sexpr) EvalError!Sexpr {
     var arg = args[0];
 
     while (arg != nil) {
-        const tag = @intToEnum(PtrTag, arg & TagMask);
+        const tag: PtrTag = @enumFromInt(arg & TagMask);
         if (tag != .pair)
             return EvalError.ExpectedList;
         list = try makePair(cell.cellArray[arg >> TagShift].dot.car, list);
@@ -462,21 +462,21 @@ fn pReverse(args: []Sexpr) EvalError!Sexpr {
 // -- Procedures ------------------------------------------
 fn pProcPred(args: []Sexpr) EvalError!Sexpr {
     // (procedure? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .procedure or tag == .primitive) sxTrue else sxFalse;
 }
 
 // -- Strings ---------------------------------------------
 fn pStrPred(args: []Sexpr) EvalError!Sexpr {
     // (string? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .string) sxTrue else sxFalse;
 }
 
 fn pStrLen(args: []Sexpr) EvalError!Sexpr {
     // (string-length <string>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     if (tag != .string)
         return EvalError.ExpectedString;
     const len = str.stringsTable.items[exp >> TagShift].len;
@@ -487,28 +487,28 @@ fn pStrRef(args: []Sexpr) EvalError!Sexpr {
     // (string-ref <string> <position>)
     const strArg = args[0];
     const posArg = args[1];
-    var tag = @intToEnum(PtrTag, strArg & TagMask);
+    var tag: PtrTag = @enumFromInt(strArg & TagMask);
     if (tag != .string)
         return EvalError.ExpectedString;
     const stg = str.get(strArg >> TagShift);
-    tag = @intToEnum(PtrTag, posArg & TagMask);
+    tag = @enumFromInt(posArg & TagMask);
     if (tag != .small_int and tag != .integer)
         return EvalError.ExpectedInteger;
     const pos = getAsInt(posArg);
     if (pos < 0 or pos >= stg.len)
         return EvalError.InvalidReference;
-    return makeChar(stg[@bitCast(usize, pos)]);
+    return makeChar(stg[@bitCast(pos)]);
 }
 
 // -- Symbols ---------------------------------------------
 fn pSymbPred(args: []Sexpr) EvalError!Sexpr {
     // (symbol? <exp>)
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .symbol) sxTrue else sxFalse;
 }
 
 // -- Vectors ---------------------------------------------
 fn pVecPred(args: []Sexpr) EvalError!Sexpr {
-    const tag = @intToEnum(PtrTag, args[0] & TagMask);
+    const tag: PtrTag = @enumFromInt(args[0] & TagMask);
     return if (tag == .vector) sxTrue else sxFalse;
 }

@@ -37,10 +37,10 @@ var charNameHashMap = std.StringHashMap(u32).init(allocator);
 var charCodeHashMap = std.AutoHashMap(u32, u32).init(allocator);
 
 pub fn init() !void {
-    for (charNameTable) |cns, i| {
-        try charNameHashMap.put(cns.name, @truncate(u32,i));
+    for (charNameTable, 0..) |cns, i| {
+        try charNameHashMap.put(cns.name, @as(u32, @truncate(i)));
         if (cns.prefer)
-            try charCodeHashMap.put(cns.code, @truncate(u32,i));
+            try charCodeHashMap.put(cns.code, @as(u32, @truncate(i)));
     }
 }
 

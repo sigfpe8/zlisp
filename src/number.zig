@@ -75,7 +75,7 @@ pub fn makeReal(real: Real) !Sexpr {
 
 /// Tests if a number represented as an Sexpr is an integer
 pub fn isInteger(num: Sexpr) bool {
-    const tag = @intToEnum(PtrTag, num & TagMask);
+    const tag: PtrTag = @enumFromInt(num & TagMask);
 
    return switch (tag) {
         .small_int, .integer => true,
@@ -83,8 +83,8 @@ pub fn isInteger(num: Sexpr) bool {
         .float => blk: {
             const ind = num >> TagShift;
             const fnum: f64 = cel.cellArray[ind].flt;
-            const inum: i64 = @floatToInt(i64, fnum);
-            break :blk if (@intToFloat(f64, inum) == fnum)
+            const inum: i64 = @intFromFloat(fnum);
+            break :blk if (@as(f64, @floatFromInt(inum)) == fnum)
                             true
                        else
                             false;
@@ -119,7 +119,7 @@ pub fn isInteger(num: Sexpr) bool {
 
 /// Tests if a number represented as an Sexpr is a Real
 pub fn isReal(num: Sexpr) bool {
-    const tag = @intToEnum(PtrTag, num & TagMask);
+    const tag: PtrTag = @enumFromInt(num & TagMask);
 
    return switch (tag) {
         .small_int, .integer, .rational, .float => true,
@@ -151,7 +151,7 @@ pub fn isReal(num: Sexpr) bool {
 /// Must not be called with complex types.
 pub fn isZeroReal(num: Sexpr) bool {
     const ind = num >> TagShift;
-    const tag = @intToEnum(PtrTag, num & TagMask);
+    const tag: PtrTag = @enumFromInt(num & TagMask);
 
    return switch (tag) {
         .small_int => ind == 0,
@@ -165,9 +165,9 @@ pub fn isZeroReal(num: Sexpr) bool {
 // Determine the highest number type in a list of arguments
 //   integer < rational < real < polar < complex
 fn maxNumType(args: []Sexpr) EvalError!PtrTag {
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.complex);
-    var maxtype: u32 = @enumToInt(PtrTag.integer);
+    const tagLo = @intFromEnum(PtrTag.small_int);
+    const tagHi = @intFromEnum(PtrTag.complex);
+    var maxtype: u32 = @intFromEnum(PtrTag.integer);
     for (args) |arg| {
         const tag = arg & TagMask;
         if (tag < tagLo or tag > tagHi)
@@ -176,12 +176,12 @@ fn maxNumType(args: []Sexpr) EvalError!PtrTag {
             maxtype = tag;
     }
 
-    return @intToEnum(PtrTag, maxtype);
+    return @enumFromInt(maxtype);
 }
 
 pub fn getAsInt(num: Sexpr) i64 {
-    switch (@intToEnum(PtrTag, num & TagMask)) {
-        .small_int => { return @as(i64, @bitCast(TaggedInt, num)) >> TagShift; },
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
+        .small_int => { return @as(i64, @as(TaggedInt, @bitCast(num))) >> TagShift; },
         .integer =>   { return cel.cellArray[num >> TagShift].int; },
         else => unreachable,
     }
@@ -190,8 +190,8 @@ pub fn getAsInt(num: Sexpr) i64 {
 pub fn getAsRational(num: Sexpr) Rational {
     var nu: i64 = 0;
     var de: i64 = 1;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
-        .small_int => { nu = @as(i64, @bitCast(TaggedInt, num)) >> TagShift; },
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
+        .small_int => { nu = @as(i64, @as(TaggedInt, @bitCast(num))) >> TagShift; },
         .integer =>   { nu = cel.cellArray[num >> TagShift].int; },
         .rational => {
             nu = getAsInt(cel.cellArray[num >> TagShift].rat.num); 
@@ -205,12 +205,12 @@ pub fn getAsRational(num: Sexpr) Rational {
 
 pub fn getAsFloat(num: Sexpr) f64 {
     const ind = num >> TagShift;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
-        .small_int => { return @intToFloat(f64, @as(i64, @bitCast(TaggedInt, num)) >> TagShift); },
-        .integer =>   { return @intToFloat(f64, cel.cellArray[ind].int); },
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
+        .small_int => { return @floatFromInt(@as(i64, @as(TaggedInt, @bitCast(num))) >> TagShift); },
+        .integer =>   { return @floatFromInt(cel.cellArray[ind].int); },
         .rational =>  {
-            const fnu = @intToFloat(f64, getAsInt(cel.cellArray[ind].rat.num)); 
-            const fde = @intToFloat(f64, getAsInt(cel.cellArray[ind].rat.den));
+            const fnu: f64 = @floatFromInt(getAsInt(cel.cellArray[ind].rat.num)); 
+            const fde: f64 = @floatFromInt(getAsInt(cel.cellArray[ind].rat.den));
             return fnu / fde; 
         },
         .float =>     { return cel.cellArray[ind].flt; },
@@ -220,9 +220,9 @@ pub fn getAsFloat(num: Sexpr) f64 {
 
 pub fn getAsReal(num: Sexpr) Real {
     const ind = num >> TagShift;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
         .small_int => {
-            return Real{ .int = @as(i64, @bitCast(TaggedInt, num)) >> TagShift };
+            return Real{ .int = @as(i64, @as(TaggedInt, @bitCast(num))) >> TagShift };
         },
         .integer => {
             return Real{ .int = cel.cellArray[ind].int };
@@ -240,9 +240,9 @@ pub fn getAsReal(num: Sexpr) Real {
 
 pub fn getAsPolar(num: Sexpr) Polar {
     const ind = num >> TagShift;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
         .small_int => {
-            return Polar{ .mag = Real{ .int = @as(i64, @bitCast(TaggedInt, num)) >> TagShift },
+            return Polar{ .mag = Real{ .int = @as(i64, @as(TaggedInt, @bitCast(num))) >> TagShift },
                           .ang = Real{ .int = 0 }};
         },
         .integer => {
@@ -275,9 +275,9 @@ pub fn getAsPolar(num: Sexpr) Polar {
 
 pub fn getAsComplex(num: Sexpr) Complex {
     const ind = num >> TagShift;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
         .small_int => {
-            return Complex{ .re = Real{ .int = @as(i64, @bitCast(TaggedInt, num)) >> TagShift },
+            return Complex{ .re = Real{ .int = @as(i64, @as(TaggedInt, @bitCast(num))) >> TagShift },
                             .im = Real{ .int = 0 }};
         },
         .integer => {
@@ -328,7 +328,7 @@ pub fn polarToComplex(mag: f64, ang: f64) Complex {
 pub fn getSign(num: Sexpr) isize {
     const exp = num >> TagShift;
     var int: i64 = undefined;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
+    switch (@as(PtrTag, @enumFromInt(num & TagMask))) {
         .small_int, .integer => {
             int = getAsInt(num);
         },
@@ -348,7 +348,7 @@ pub fn getSign(num: Sexpr) isize {
 /// Not defined for complex numbers.
 fn absReal(num: Sexpr) !Sexpr {
     const exp = num >> TagShift;
-    switch (@intToEnum(PtrTag, num & TagMask)) {
+    switch (@as(PtrTag, (@enumFromInt(num & TagMask)))) {
         .small_int, .integer => {
             const int = getAsInt(num);
             if (int != std.math.minInt(i64)) {
@@ -358,7 +358,7 @@ fn absReal(num: Sexpr) !Sexpr {
             }
             // Since we cannot negate minInt(i64), we're coercing it to float.
             // Maybe we should give an error?
-            const flt = @intToFloat(f64, int);
+            const flt: f64 = @floatFromInt(int);
             return try makeFloat(-flt);
         },
         .float => {
@@ -377,8 +377,8 @@ fn absReal(num: Sexpr) !Sexpr {
             }
             // Since we cannot negate minInt(i64), we're coercing it to float.
             // Maybe we should give an error?
-            const fnu = @intToFloat(f64, int); 
-            const fde = @intToFloat(f64, getAsInt(cel.cellArray[exp].rat.den));
+            const fnu: f64 = @floatFromInt(int); 
+            const fde: f64 = @floatFromInt(getAsInt(cel.cellArray[exp].rat.den));
             return try makeFloat(-fnu / fde);
         },
         else => unreachable,
@@ -391,7 +391,7 @@ fn addReal(r1: Real, r2: Real) Real {
         .int => |int1| {
             switch (r2) {
                 .int => |int2| { return Real{ .int = int1 + int2 };},
-                .flt => |flt2| { return Real{ .flt = @intToFloat(f64, int1) + flt2 }; },
+                .flt => |flt2| { return Real{ .flt = @as(f64, @floatFromInt(int1)) + flt2 }; },
                 .rat => |rat2| {
                     return Real{ .rat = addRational(Rational{.num=int1,.den=1}, rat2)};
                 }
@@ -399,10 +399,10 @@ fn addReal(r1: Real, r2: Real) Real {
         },
         .flt => |flt1| {
             switch (r2) {
-                .int => |int2| { return Real{ .flt = flt1 + @intToFloat(f64, int2)}; },
+                .int => |int2| { return Real{ .flt = flt1 + @as(f64, @floatFromInt(int2))}; },
                 .flt => |flt2| { return Real{ .flt = flt1 + flt2 }; },
                 .rat => |rat2| {
-                    const flt2 = @intToFloat(f64, rat2.num) / @intToFloat(f64, rat2.den);
+                    const flt2 = @as(f64, @floatFromInt(rat2.num)) / @as(f64, @floatFromInt(rat2.den));
                     return Real{ .flt = flt1 + flt2 };
                 }
             }
@@ -414,7 +414,7 @@ fn addReal(r1: Real, r2: Real) Real {
                     return Real{ .rat = addRational(rat1, rat2)};
                 },
                 .flt => |flt2| {
-                    const flt1 = @intToFloat(f64, rat1.num) / @intToFloat(f64, rat1.den);
+                    const flt1 = @as(f64, @floatFromInt(rat1.num)) / @as(f64, @floatFromInt(rat1.den));
                     return Real{ .flt = flt1 + flt2 };
                 },
                 .rat => |rat2| { return Real{ . rat = addRational(rat1, rat2)}; },
@@ -429,7 +429,7 @@ fn subReal(r1: Real, r2: Real) Real {
         .int => |int1| {
             switch (r2) {
                 .int => |int2| { return Real{ .int = int1 - int2 };},
-                .flt => |flt2| { return Real{ .flt = @intToFloat(f64, int1) - flt2 }; },
+                .flt => |flt2| { return Real{ .flt = @as(f64, @floatFromInt(int1)) - flt2 }; },
                 .rat => |rat2| {
                     return Real{ .rat = subRational(Rational{.num=int1,.den=1}, rat2)};
                 }
@@ -437,10 +437,10 @@ fn subReal(r1: Real, r2: Real) Real {
         },
         .flt => |flt1| {
             switch (r2) {
-                .int => |int2| { return Real{ .flt = flt1 - @intToFloat(f64, int2)}; },
+                .int => |int2| { return Real{ .flt = flt1 - @as(f64, @floatFromInt(int2))}; },
                 .flt => |flt2| { return Real{ .flt = flt1 - flt2 }; },
                 .rat => |rat2| {
-                    const flt2 = @intToFloat(f64, rat2.num) / @intToFloat(f64, rat2.den);
+                    const flt2 = @as(f64, @floatFromInt(rat2.num)) / @as(f64, @floatFromInt(rat2.den));
                     return Real{ .flt = flt1 - flt2 };
                 }
             }
@@ -452,7 +452,7 @@ fn subReal(r1: Real, r2: Real) Real {
                     return Real{ .rat = subRational(rat1, rat2)};
                 },
                 .flt => |flt2| {
-                    const flt1 = @intToFloat(f64, rat1.num) / @intToFloat(f64, rat1.den);
+                    const flt1 = @as(f64, @floatFromInt(rat1.num)) / @as(f64, @floatFromInt(rat1.den));
                     return Real{ .flt = flt1 - flt2 };
                 },
                 .rat => |rat2| { return Real{ . rat = subRational(rat1, rat2)}; },
@@ -476,7 +476,7 @@ fn mulReal(r1: Real, r2: Real) Real {
         .int => |int1| {
             switch (r2) {
                 .int => |int2| { return Real{ .int = int1 * int2 };},
-                .flt => |flt2| { return Real{ .flt = @intToFloat(f64, int1) * flt2 }; },
+                .flt => |flt2| { return Real{ .flt = @as(f64, @floatFromInt(int1)) * flt2 }; },
                 .rat => |rat2| {
                     return Real{ .rat = mulRational(Rational{.num=int1,.den=1}, rat2)};
                 }
@@ -484,10 +484,10 @@ fn mulReal(r1: Real, r2: Real) Real {
         },
         .flt => |flt1| {
             switch (r2) {
-                .int => |int2| { return Real{ .flt = flt1 * @intToFloat(f64, int2)}; },
+                .int => |int2| { return Real{ .flt = flt1 * @as(f64, @floatFromInt(int2))}; },
                 .flt => |flt2| { return Real{ .flt = flt1 * flt2 }; },
                 .rat => |rat2| {
-                    const flt2 = @intToFloat(f64, rat2.num) / @intToFloat(f64, rat2.den);
+                    const flt2 = @as(f64, @floatFromInt(rat2.num)) / @as(f64, @floatFromInt(rat2.den));
                     return Real{ .flt = flt1 * flt2 };
                 }
             }
@@ -499,7 +499,7 @@ fn mulReal(r1: Real, r2: Real) Real {
                     return Real{ .rat = mulRational(rat1, rat2)};
                 },
                 .flt => |flt2| {
-                    const flt1 = @intToFloat(f64, rat1.num) / @intToFloat(f64, rat1.den);
+                    const flt1 = @as(f64, @floatFromInt(rat1.num)) / @as(f64, @floatFromInt(rat1.den));
                     return Real{ .flt = flt1 * flt2 };
                 },
                 .rat => |rat2| { return Real{ . rat = mulRational(rat1, rat2)}; },
@@ -529,7 +529,7 @@ fn divReal(r1: Real, r2: Real) !Real {
         .int => |int1| {
             switch (r2) {
                 .int => |int2| { return Real{ .rat = Rational{ .num = int1, .den = int2} };},
-                .flt => |flt2| { return Real{ .flt = @intToFloat(f64, int1) / flt2 }; },
+                .flt => |flt2| { return Real{ .flt = @as(f64, @floatFromInt(int1)) / flt2 }; },
                 .rat => |rat2| {
                     return Real{ .rat = try divRational(Rational{.num=int1,.den=1}, rat2)};
                 }
@@ -537,10 +537,10 @@ fn divReal(r1: Real, r2: Real) !Real {
         },
         .flt => |flt1| {
             switch (r2) {
-                .int => |int2| { return Real{ .flt = flt1 / @intToFloat(f64, int2)}; },
+                .int => |int2| { return Real{ .flt = flt1 / @as(f64, @floatFromInt(int2))}; },
                 .flt => |flt2| { return Real{ .flt = flt1 / flt2 }; },
                 .rat => |rat2| {
-                    const flt2 = @intToFloat(f64, rat2.num) / @intToFloat(f64, rat2.den);
+                    const flt2 = @as(f64, @floatFromInt(rat2.num)) / @as(f64, @floatFromInt(rat2.den));
                     return Real{ .flt = flt1 / flt2 };
                 }
             }
@@ -552,7 +552,7 @@ fn divReal(r1: Real, r2: Real) !Real {
                     return Real{ .rat = try divRational(rat1, rat2)};
                 },
                 .flt => |flt2| {
-                    const flt1 = @intToFloat(f64, rat1.num) / @intToFloat(f64, rat1.den);
+                    const flt1 = @as(f64, @floatFromInt(rat1.num)) / @as(f64, @floatFromInt(rat1.den));
                     return Real{ .flt = flt1 / flt2 };
                 },
                 .rat => |rat2| { return Real{ . rat = try divRational(rat1, rat2)}; },
@@ -570,16 +570,16 @@ fn cmpReal(r1: Real, r2: Real) isize {
         .int => |int1| {
             switch (r2) {
                 .int => |int2| { return cmpNum(i64, int1, int2); },
-                .flt => |flt2| { return cmpNum(f64, @intToFloat(f64, int1), flt2); },
+                .flt => |flt2| { return cmpNum(f64, @as(f64, @floatFromInt(int1)), flt2); },
                 .rat => |rat2| { return cmpRational(Rational{.num=int1,.den=1}, rat2); }
             }
         },
         .flt => |flt1| {
             switch (r2) {
-                .int => |int2| { return cmpNum(f64, flt1, @intToFloat(f64, int2)); },
+                .int => |int2| { return cmpNum(f64, flt1, @as(f64, @floatFromInt(int2))); },
                 .flt => |flt2| { return cmpNum(f64, flt1, flt2); },
                 .rat => |rat2| {
-                    const flt2 = @intToFloat(f64, rat2.num) / @intToFloat(f64, rat2.den);
+                    const flt2 = @as(f64, @floatFromInt(rat2.num)) / @as(f64, @floatFromInt(rat2.den));
                     return cmpNum(f64, flt1, flt2);
                 }
             }
@@ -591,7 +591,7 @@ fn cmpReal(r1: Real, r2: Real) isize {
                     return cmpRational(rat1, rat2);
                 },
                 .flt => |flt2| {
-                    const flt1 = @intToFloat(f64, rat1.num) / @intToFloat(f64, rat1.den);
+                    const flt1 = @as(f64, @floatFromInt(rat1.num)) / @as(f64, @floatFromInt(rat1.den));
                     return cmpNum(f64, flt1, flt2);
                 },
                 .rat => |rat2| { return cmpRational(rat1, rat2); },
@@ -660,7 +660,7 @@ fn mulRational(r1: Rational, r2: Rational) Rational {
     // Can't get the absolute value of minInt
     if (num != std.math.minInt(i64)) {
         // Reduce to lowest terms (-2/4 --> -1/2)
-        const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
+        const gcd: i64 = @bitCast(std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
         if (gcd != 1) {
             num = @divExact(num, gcd);
             den = @divExact(den, gcd);
@@ -680,7 +680,7 @@ fn divRational(r1: Rational, r2: Rational) !Rational {
     // Can't get the absolute value of minInt
     if (num != std.math.minInt(i64)) {
         // Reduce to lowest terms (-2/4 --> -1/2)
-        const gcd: i64 = @bitCast(i64, std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
+        const gcd: i64 = @bitCast(std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
         if (gcd != 1) {
             num = @divExact(num, gcd);
             den = @divExact(den, gcd);
@@ -787,8 +787,8 @@ fn eqlComplex(c1: Complex, c2: Complex) bool {
 pub fn pNumPred(args: []Sexpr) EvalError!Sexpr {
     // (number? <exp>)
     const tag  = args[0] & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.complex);
+    const tagLo = @intFromEnum(PtrTag.small_int);
+    const tagHi = @intFromEnum(PtrTag.complex);
     return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
 }
 
@@ -800,30 +800,30 @@ pub fn pIntPred(args: []Sexpr) EvalError!Sexpr {
 pub fn pRatPred(args: []Sexpr) EvalError!Sexpr {
     // (rational? <exp>)
     const tag  = args[0] & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.float);
+    const tagLo = @intFromEnum(PtrTag.small_int);
+    const tagHi = @intFromEnum(PtrTag.float);
     return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
  }
 
 pub fn pRealPred(args: []Sexpr) EvalError!Sexpr {
     // (real? <exp>)
     const tag  = args[0] & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.float);
+    const tagLo = @intFromEnum(PtrTag.small_int);
+    const tagHi = @intFromEnum(PtrTag.float);
     return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
  }
 
 pub fn pComplexPred(args: []Sexpr) EvalError!Sexpr {
     // (complex? <exp>)
     const tag  = args[0] & TagMask;
-    const tagLo = @enumToInt(PtrTag.small_int);
-    const tagHi = @enumToInt(PtrTag.complex);
+    const tagLo = @intFromEnum(PtrTag.small_int);
+    const tagHi = @intFromEnum(PtrTag.complex);
     return if (tag >= tagLo and tag <= tagHi) sxTrue else sxFalse;
  }
 
 pub fn isExact(num: Sexpr) bool {
     const ind = num >> TagShift;
-    const tag = @intToEnum(PtrTag, num & TagMask);
+    const tag: PtrTag = @enumFromInt(num & TagMask);
 
     return switch (tag) {
         .small_int, .integer, .rational => true,
@@ -840,7 +840,7 @@ pub fn pExactPred(args: []Sexpr) EvalError!Sexpr {
     // (exact? <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
 
     const exact = switch (tag) {
         .small_int, .integer, .rational => true,
@@ -874,7 +874,7 @@ pub fn pMakeRectangular(args: []Sexpr) EvalError!Sexpr {
 pub fn pPositivePred(args: []Sexpr) EvalError!Sexpr {
     // (positive? <exp>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     const cmp: isize = switch (tag) {
         .small_int, .integer, .rational, .float => getSign(exp),
         .polar => blkp: {
@@ -899,7 +899,7 @@ pub fn pPositivePred(args: []Sexpr) EvalError!Sexpr {
 pub fn pNegativePred(args: []Sexpr) EvalError!Sexpr {
     // (negative? <exp>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     const cmp: isize = switch (tag) {
         .small_int, .integer, .rational, .float => getSign(exp),
         .polar => blkp: {
@@ -924,7 +924,7 @@ pub fn pNegativePred(args: []Sexpr) EvalError!Sexpr {
 pub fn pOddPred(args: []Sexpr) EvalError!Sexpr {
     // (odd? <exp>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     const int: i64 = switch (tag) {
         .small_int, .integer, => getAsInt(exp),
         else => return EvalError.ExpectedInteger,
@@ -935,7 +935,7 @@ pub fn pOddPred(args: []Sexpr) EvalError!Sexpr {
 pub fn pEvenPred(args: []Sexpr) EvalError!Sexpr {
     // (even? <exp>)
     const exp = args[0];
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     const int: i64 = switch (tag) {
         .small_int, .integer, => getAsInt(exp),
         else => return EvalError.ExpectedInteger,
@@ -947,7 +947,7 @@ pub fn pZeroPred(args: []Sexpr) EvalError!Sexpr {
     // (zero? <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
     const zero: bool = switch (tag) {
         .small_int => ind == 0,
         .integer => cel.cellArray[ind].int == 0,
@@ -965,7 +965,7 @@ pub fn pRealPart(args: []Sexpr) EvalError!Sexpr {
     // (real-part <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
 
     return switch (tag) {
         .small_int, .integer, .rational, .float => exp,
@@ -986,7 +986,7 @@ pub fn pImagPart(args: []Sexpr) EvalError!Sexpr {
     // (imag-part <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
 
     return switch (tag) {
         .small_int, .integer, .rational, .float => try makeInteger(0),
@@ -1005,7 +1005,7 @@ pub fn pMagnitude(args: []Sexpr) EvalError!Sexpr {
     // (magnitude <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
 
    return switch (tag) {
         .small_int, .integer, .rational, .float => try absReal(exp),
@@ -1030,7 +1030,7 @@ pub fn pAngle(args: []Sexpr) EvalError!Sexpr {
     // (angle <exp>)
     const exp = args[0];
     const ind = exp >> TagShift;
-    const tag = @intToEnum(PtrTag, exp & TagMask);
+    const tag: PtrTag = @enumFromInt(exp & TagMask);
 
     return switch (tag) {
         .small_int, .integer, .rational, .float => blki: {
