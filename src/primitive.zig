@@ -31,6 +31,8 @@ const makeTaggedPtr = sexp.makeTaggedPtr;
 const unlimited = std.math.maxInt(u32);
 
 const pApply = eval.pApply;
+const car = eval.car;
+const cdr = eval.cdr;
 
 const pCloseInputPort = iop.pCloseInputPort;
 const pCloseOutputPort = iop.pCloseOutputPort;
@@ -102,6 +104,9 @@ const FunDisp = struct {
 const PrimitTable = [_]FunDisp{
     .{ .name = "angle",               .func = pAngle,             .min = 1, .max = 1, },
     .{ .name = "apply",               .func = pApply,             .min = 2, .max = unlimited, },
+    .{ .name = "assoc",               .func = pAssoc,             .min = 2, .max = 2, },
+    .{ .name = "assq",                .func = pAssq,              .min = 2, .max = 2, },
+    .{ .name = "assv",                .func = pAssv,              .min = 2, .max = 2, },
     .{ .name = "boolean?",            .func = pBoolPred,          .min = 1, .max = 1, },
     .{ .name = "car",                 .func = pCar,               .min = 1, .max = 1, },
     .{ .name = "cdr",                 .func = pCdr,               .min = 1, .max = 1, },
@@ -326,6 +331,64 @@ fn areEqual(exp1: Sexpr, exp2: Sexpr) bool {
         },
         else => false,
     };
+}
+
+// -- assoc, member and friends ---------------------------
+/// (assoc <obj> <alist>)
+fn pAssoc(args: []Sexpr) EvalError!Sexpr {
+    const obj = args[0];
+    var list = args[1];
+    const tag: PtrTag = @enumFromInt(list & TagMask);
+    if (tag != .pair)
+        return EvalError.ExpectedList;
+
+    while (list != nil) {
+        const pair = try car(list);
+        const head = try car(pair);
+        if (areEqual(obj, head))
+            return pair;        
+        list = try cdr(list);
+    }
+
+    return sxFalse;
+}
+
+/// (assq <obj> <alist>)
+ fn pAssq(args: []Sexpr) EvalError!Sexpr {
+    const obj = args[0];
+    var list = args[1];
+    const tag: PtrTag = @enumFromInt(list & TagMask);
+    if (tag != .pair)
+        return EvalError.ExpectedList;
+
+    while (list != nil) {
+        const pair = try car(list);
+        const head = try car(pair);
+        if (areEq(obj, head))
+            return pair;        
+        list = try cdr(list);
+    }
+
+    return sxFalse;
+}
+
+/// (assv <obj> <alist>)
+fn pAssv(args: []Sexpr) EvalError!Sexpr {
+    const obj = args[0];
+    var list = args[1];
+    const tag: PtrTag = @enumFromInt(list & TagMask);
+    if (tag != .pair)
+        return EvalError.ExpectedList;
+
+    while (list != nil) {
+        const pair = try car(list);
+        const head = try car(pair);
+        if (areEqv(obj, head))
+            return pair;        
+        list = try cdr(list);
+    }
+
+    return sxFalse;
 }
 
 // -- Booleans --------------------------------------------
