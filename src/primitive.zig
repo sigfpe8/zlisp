@@ -138,6 +138,9 @@ const PrimitTable = [_]FunDisp{
     .{ .name = "magnitude",           .func = pMagnitude,         .min = 1, .max = 1, },
     .{ .name = "make-polar",          .func = pMakePolar,         .min = 2, .max = 2, },
     .{ .name = "make-rectangular",    .func = pMakeRectangular,   .min = 2, .max = 2, },
+    .{ .name = "member",              .func = pMember,            .min = 2, .max = 2, },
+    .{ .name = "memq",                .func = pMemq,              .min = 2, .max = 2, },
+    .{ .name = "memv",                .func = pMemv,              .min = 2, .max = 2, },
     .{ .name = "negative?",           .func = pNegativePred,      .min = 1, .max = 1, },
     .{ .name = "newline",             .func = pNewline,           .min = 0, .max = 1, },
     .{ .name = "not",                 .func = pNot,               .min = 1, .max = 1, },
@@ -385,6 +388,60 @@ fn pAssv(args: []Sexpr) EvalError!Sexpr {
         const head = try car(pair);
         if (areEqv(obj, head))
             return pair;        
+        list = try cdr(list);
+    }
+
+    return sxFalse;
+}
+
+/// (member <obj> <list>)
+fn pMember(args: []Sexpr) EvalError!Sexpr {
+    const obj = args[0];
+    var list = args[1];
+    const tag: PtrTag = @enumFromInt(list & TagMask);
+    if (tag != .pair)
+        return EvalError.ExpectedList;
+
+    while (list != nil) {
+        const elem = try car(list);
+        if (areEqual(obj, elem))
+            return list;        
+        list = try cdr(list);
+    }
+
+    return sxFalse;
+}
+
+/// (memq <obj> <list>)
+fn pMemq(args: []Sexpr) EvalError!Sexpr {
+    const obj = args[0];
+    var list = args[1];
+    const tag: PtrTag = @enumFromInt(list & TagMask);
+    if (tag != .pair)
+        return EvalError.ExpectedList;
+
+    while (list != nil) {
+        const elem = try car(list);
+        if (areEq(obj, elem))
+            return list;        
+        list = try cdr(list);
+    }
+
+    return sxFalse;
+}
+
+/// (memv <obj> <list>)
+fn pMemv(args: []Sexpr) EvalError!Sexpr {
+    const obj = args[0];
+    var list = args[1];
+    const tag: PtrTag = @enumFromInt(list & TagMask);
+    if (tag != .pair)
+        return EvalError.ExpectedList;
+
+    while (list != nil) {
+        const elem = try car(list);
+        if (areEqv(obj, elem))
+            return list;        
         list = try cdr(list);
     }
 
