@@ -63,6 +63,11 @@ const SFormTable = [_]FunDisp{
     .{ .name = "unquote-splicing", .func = sfUnquote,    .min = 1, .max = 1, },
 };
 
+const Formals = struct {
+    fixed: Sexpr,     // Vector of fixed formal parameters
+    rest:  Sexpr,     // Variable with list of rest of parameters
+};
+
 pub fn apply(env: *Environ, pid: SFormId, args: []Sexpr) EvalError!void {
     const nargs = args.len;
     const fd: *const FunDisp = &SFormTable[pid];
@@ -111,30 +116,48 @@ pub fn getName(id: SFormId) []const u8 {
     return SFormTable[id].name;
 }
 
-// Expects a list of variables (formal parameters)
-// Puts them into a vector for easy access
-fn getFormals(lst: Sexpr) !Sexpr {
-    var ptr = lst;
-    var tag: PtrTag = @enumFromInt(ptr & TagMask);
-    var len: u32 = 0;
-    const base = eval.stackGetSP();
-    defer eval.stackSetSP(base);
+/// Parse <formals> specification
+///   <formals> := (<variable>*) |
+///                <variable> |
+///                (<variable>+ . <variable>)
+fn getFormals(arg: Sexpr) !Formals {
+    var tag: PtrTag = @enumFromInt(arg & TagMask);
     
-    if (tag != .pair)
-        return EvalError.ExpectedList;
+    switch (tag) {
+        .symbol => {   // x
+            return .{ .fixed = sxUndef, .rest = arg, };
+        },
+        .pair => {     // (x y z ...)
+            var len: usize = 0;
+            var list = arg;
+            var rest = sxUndef;
+            const base = eval.stackGetSP();
+            defer eval.stackSetSP(base);
 
-    while (ptr != nil) {
-        const vname = try car(ptr);
-        tag = @enumFromInt(vname & TagMask);
-        if (tag != .symbol)
-            return EvalError.ExpectedVariable;
-        try eval.stackPush(vname);
-        len += 1;
-        ptr = try cdr(ptr);
+            while (list != nil) {
+                const vname = try car(list);
+                tag = @enumFromInt(vname & TagMask);
+                if (tag != .symbol)
+                    return EvalError.ExpectedVariable;
+                try eval.stackPush(vname);
+                len += 1;
+                list = try cdr(list);
+                tag = @enumFromInt(list & TagMask);
+                if (tag != .pair) {     // (x y . z) ?
+                    if (tag != .symbol)
+                        return EvalError.ExpectedVariable;
+                    rest = list;        // vname = z
+                    list = nil;         // Stop loop
+                }
+            }
+
+            const tvec = eval.stackGetSlice(base, len);
+            const fixed = try makeVector(tvec[0..len]);
+            return .{ .fixed = fixed, .rest = rest, };
+        },
+        else => return EvalError.ExpectedFormals,
     }
 
-    const tvec = eval.stackGetSlice(base, len);
-    return makeVector(tvec[0..len]);
 }
 
 // Gets a slice of Sexprs, which comprise the body's sequence of expressions
@@ -228,7 +251,7 @@ fn sfLambda(env: *Environ, args: []Sexpr) EvalError!void {
     // (lambda <formals> <body>)
     const formals = try getFormals(args[0]);
     const body    = try getBody(args[1..]);
-    const proc    = try makeProc(env, formals, body);
+    const proc    = try makeProc(env, formals.fixed, formals.rest, body);
     return stackPush(proc);
 }
 

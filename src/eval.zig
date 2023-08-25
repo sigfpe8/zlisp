@@ -61,6 +61,7 @@ const sxUndef = sexp.sxUndef;
 const sxVoid = sexp.sxVoid;
 const makeTaggedPtr = sexp.makeTaggedPtr;
 const makeProc = sexp.makeProc;
+const makePair = sexp.makePair;
 const areEqv = prim.areEqv;
 
 const EvalError = @import("error.zig").EvalError;
@@ -190,32 +191,49 @@ pub fn quoteExpr(name: SymbolId, expr: Sexpr) !Sexpr {
 //     return cell.cellArray[exp].dot.car;
 // }
 
+/// Apply a procedure to a list of arguments
 fn apply(pid: ProcId, args: []Sexpr) !void {
     const pt: *Proc = &proc.procArray[pid];
-
     const env: *Environ = try allocator.create(Environ);
     env.* = .{
         .outer = pt.env,  // Chain it to the closure environment
         .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
     };
 
-    // Both 'formals' and 'body' are vectors
-    const fid = pt.formals >> TagShift;
-    const bid = pt.body >> TagShift;
-    const flen = vec.vecArray[fid]; // Length of formals slice
+    // 'body' is a vector
+    const bid  = pt.body >> TagShift;
     const blen = vec.vecArray[bid]; // Length of body slice
-    const formals = vec.vecArray[fid+1..fid+1+flen];
-    const body    = vec.vecArray[bid+1..bid+1+blen];
+    const body = vec.vecArray[bid+1..bid+1+blen];
 
-    if (args.len < flen)
-        return EvalError.TooFewArguments;
-    if (args.len > flen)
-        return EvalError.TooManyArguments;
+    var flen: usize = 0;    // Number of fixed formals
 
-    var i: u32 = 0;
-    while (i < flen) : (i += 1) {
-        // print("formal[{}]={}\n", .{i, formals[i] >> TagShift});
-        try env.setVar(formals[i] >> TagShift, args[i]);
+    // Handle fixed parameters
+    if (pt.fixed != sxUndef) {    // (x y ...)
+        // 'formals' is a vector
+        const fid = pt.fixed >> TagShift;
+        flen = vec.vecArray[fid];
+        const formals = vec.vecArray[fid+1..fid+1+flen];
+
+        if (args.len < flen)
+            return EvalError.TooFewArguments;
+        if (pt.rest == sxUndef and args.len > flen)
+            return EvalError.TooManyArguments;
+
+        var i: usize = 0;
+        while (i < flen) : (i += 1) {
+            try env.setVar(formals[i] >> TagShift, args[i]);
+        }
+    }
+
+    // Handle list with rest of parameters
+    if (pt.rest != sxUndef) {       // x or (x y ... . z)
+        var list = nil;
+        var i: usize = args.len;
+
+        while (i > flen) : (i -= 1) {
+            list = try makePair(args[i - 1], list);
+        }
+        try env.setVar(pt.rest >> TagShift, list);
     }
 
     try env.evalBody(body);

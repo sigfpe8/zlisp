@@ -155,11 +155,12 @@ pub fn makeVector(tvec: []Sexpr) !Sexpr {
     return makeTaggedPtr(id, .vector);
 }
 
-pub fn makeProc(env: *Environ, formals: Sexpr, body: Sexpr) !Sexpr {
+pub fn makeProc(env: *Environ, fixed: Sexpr, rest: Sexpr, body: Sexpr) !Sexpr {
     const pid = try pro.Proc.alloc();
     const ptr = &pro.procArray[pid];
     ptr.env = env;
-    ptr.formals = formals;
+    ptr.fixed = fixed;  // Vector of fixed formal parameters
+    ptr.rest = rest;    // Variable with list of rest of parameters
     ptr.body = body;
     return makeTaggedPtr(pid, .procedure);
 }

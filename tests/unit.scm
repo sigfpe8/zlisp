@@ -90,6 +90,23 @@
 (test (null? '(())) #f)
 (test (null? '(a)) #f)
 
+(new-section "Strings")
+(test (string? "hello") #t)
+(test (string? 'hello) #f)
+(test (string? 123) #f)
+(test (string? "") #t)
+(test (string-length "") 0)
+(test (string-length "hello") 5)
+
+(new-section "Formals")
+(test ((lambda () 42)) 42)
+(test ((lambda (x) x) 43) 43)
+(test ((lambda (x y) (+ x y)) 3 5) 8)
+(test ((lambda (x y . z) z) 1 2 3 4 5 6) '(3 4 5 6))
+(test ((lambda x x)) '())
+(test ((lambda x x) 10) '(10))
+(test ((lambda x x) 10 20 30) '(10 20 30))
+
 (new-section "Assoc")
 (define e '((a 1) (b 2) (c 3)))
 (test (assq 'a e) '(a 1))
@@ -123,8 +140,8 @@
 
 (newline)
 (if (zero? errors)
-    (display "All tests PASSED!")
+    (display "All tests PASSED!\n")
     (begin
         (display "There were ")
         (display errors)
-        (display " errors")))
+        (display " errors\n")))

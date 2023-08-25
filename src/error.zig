@@ -58,6 +58,7 @@ pub const EvalError = error{
     ExpectedProcedure,
     ExpectedInputPort,
     ExpectedOutputPort,
+    ExpectedFormals,
     DefineFailed,
     PrintError,
     WrongNumberOfArguments,
