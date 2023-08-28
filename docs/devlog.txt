@@ -2,7 +2,12 @@
              In the previous commit I had implemented all the variations
              of lambdas that create procedures with a variable number of
              arguments. Now this facility is integrated with `define` for
-             more convenience.
+             more convenience. Previously we had only
+
+                (define f (lambda (x y z) <body>))
+
+                Now we also have
+
                 (define (f x y z) <body>)
                 (define (f x y . z) <body>)
                 (define (f . x) <body>)
