@@ -49,7 +49,7 @@ const SFormTable = [_]FunDisp{
     .{ .name = "begin",            .func = sfBegin,      .min = 2, .max = unlimited, },
     .{ .name = "case",             .func = sfCase,       .min = 2, .max = unlimited, },
     .{ .name = "cond",             .func = sfCond,       .min = 1, .max = unlimited, },
-    .{ .name = "define",           .func = sfDefine,     .min = 2, .max = 2, },
+    .{ .name = "define",           .func = sfDefine,     .min = 2, .max = unlimited, },
     .{ .name = "if",               .func = sfIf,         .min = 2, .max = 3, },
     .{ .name = "lambda",           .func = sfLambda,     .min = 2, .max = unlimited, },
     .{ .name = "let",              .func = sfLet,        .min = 2, .max = unlimited, },
@@ -218,14 +218,30 @@ fn sfCond(env: *Environ, args: []Sexpr) EvalError!void {
 }
 
 fn sfDefine(env: *Environ, args: []Sexpr) EvalError!void {
-    // (define <var> <exp>)
     // Use the same (current) environment to evaluate the
     // expressions and bind the variables.
-    const vname = args[0];
-    const tag: PtrTag = @enumFromInt(vname & TagMask);
-    if (tag != .symbol)
-        return EvalError.ExpectedSymbol;
-    var exp = try env.evalPop(args[1]);
+    var vname = args[0];
+    var tag: PtrTag = @enumFromInt(vname & TagMask);
+    var exp: Sexpr = undefined;
+    switch (tag) {
+        .pair => {
+            // (define (<variable> <formals>) <body>) |
+            // (define (<variable) . <formal>) <body>)
+            const formals = try cdr(vname);
+            vname = try car(vname);
+            tag = @enumFromInt(vname & TagMask);
+            if (tag != .symbol)
+                return EvalError.ExpectedVariable;
+            exp = try defineLambda(env, formals, args[1..]);
+        },
+        .symbol => {
+            // (define <variable> <expression>)
+            if (args.len > 2)
+                return EvalError.TooManyArguments;
+            exp = try env.evalPop(args[1]);
+        },
+        else => return EvalError.ExpectedVariable,
+    }
     try env.setVar(vname >> TagShift, exp);
     return stackPush(sxVoid);
 }
@@ -253,6 +269,15 @@ fn sfLambda(env: *Environ, args: []Sexpr) EvalError!void {
     const body    = try getBody(args[1..]);
     const proc    = try makeProc(env, formals.fixed, formals.rest, body);
     return stackPush(proc);
+}
+
+fn defineLambda(env: *Environ, arg0: Sexpr, args: []Sexpr) EvalError!Sexpr {
+    // (define (<variable> <formals>) <body>) |
+    // (define (<variable) . <formal>) <body>)
+    const formals = try getFormals(arg0);
+    const body    = try getBody(args[0..]);
+    const proc    = try makeProc(env, formals.fixed, formals.rest, body);
+    return proc;
 }
 
 fn sfLet(env: *Environ, args: []Sexpr) EvalError!void {
