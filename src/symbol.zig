@@ -63,7 +63,7 @@ pub fn intern(symbol: []const u8) !SymbolId {
 
     // Copy symbol to sym_bytes[]
     sym_bytes[id] = len;
-    mem.copy(u8, sym_bytes[id + 1 .. id + 1 + len], symbol);
+    @memcpy(sym_bytes[id + 1 .. id + 1 + len], symbol);
     sym_next_id += len + 1;
 
     // Add it to sym_table[]

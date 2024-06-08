@@ -17,6 +17,7 @@ pub const ReadError = error{
     WouldBlock,
     NetNameDeleted,
     NoSpaceLeft,
+    SocketNotConnected,
 };
 
 pub const ParsingError = error{

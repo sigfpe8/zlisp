@@ -249,7 +249,7 @@ fn sfDefine(env: *Environ, args: []Sexpr) EvalError!void {
 fn sfIf(env: *Environ, args: []Sexpr) EvalError!void {
     // (if <test-exp> <then-exp> <else-exp>)
     // (if <test-exp> <then-exp>)
-    var tstexp = try env.evalPop(args[0]);
+    const tstexp = try env.evalPop(args[0]);
     var exp: Sexpr = undefined;
     // Anything different from #f is true
     if (tstexp != sxFalse) {
@@ -357,8 +357,8 @@ fn qqRec(env: *Environ, arg: Sexpr, level: usize) EvalError!QqRes {
         qcar = qcar >> TagShift;
         if (tag == .symbol) {
             if (qcar == eval.kwQuasiquote or qcar == eval.kwUnquote or qcar == eval.kwUnquote_spl or qcar == eval.kwQuote) {
-                var qcdr = try cdr(arg);
-                var qarg = try car(qcdr);
+                const qcdr = try cdr(arg);
+                const qarg = try car(qcdr);
                 if (try cdr(qcdr) != nil)
                     return EvalError.QuasiquoteExpectsOnly1Argument;
                 foundQuote = true;
@@ -402,7 +402,7 @@ fn QuasiquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
 // printSexpr(arg, true) catch {};
 // print("\n", .{});
 
-    var tag: PtrTag = @enumFromInt(arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .pair or arg == nil)
         return arg;
 
@@ -438,7 +438,7 @@ fn UnquoteRec(env: *Environ, arg: Sexpr, level: usize) EvalError!Sexpr {
     if (level == 0)
         return env.evalPop(arg);
 
-    var tag: PtrTag = @enumFromInt(arg & TagMask);
+    const tag: PtrTag = @enumFromInt(arg & TagMask);
     if (tag != .pair or arg == nil)
         return arg;
 
@@ -484,7 +484,7 @@ fn sfSetBang(env: *Environ, args: []Sexpr) EvalError!void {
     const tag: PtrTag = @enumFromInt(vname & TagMask);
     if (tag != .symbol)
         return EvalError.ExpectedSymbol;
-    var exp = try env.evalPop(args[1]);
+    const exp = try env.evalPop(args[1]);
     try env.setBangVar(vname >> TagShift, exp);
     return stackPush(sxVoid);
 }

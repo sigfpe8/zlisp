@@ -146,7 +146,7 @@ fn getSign(real: Real) i64 {
 
 pub fn strDup(src: []const u8) ![]u8 {
     const dst = try allocator.alloc(u8, src.len);
-    mem.copy(u8, dst[0..], src[0..]);
+    @memcpy(dst[0..], src[0..]);
     return dst;
 }
 
@@ -373,7 +373,7 @@ pub const Lexer = struct {
         const buffer = self.buffer;
         const reader = self.reader;
 
-        var line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
+        const line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
                     orelse return null;
         self.lnum += 1;
 

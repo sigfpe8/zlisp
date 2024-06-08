@@ -105,9 +105,9 @@ var stdoutPort: Sexpr = makePort(1);
 var stderrPort: Sexpr = makePort(2);
 
 pub fn init() !void {
-    var inpp = try Lexer.create("stdin");
-    var outp = try Printer.create("stdout");
-    var errp = try Printer.create("stderr");
+    const inpp = try Lexer.create("stdin");
+    const outp = try Printer.create("stdout");
+    const errp = try Printer.create("stderr");
 
     try portsTable.append(.{ .reader = inpp }); // [0]
     try portsTable.append(.{ .writer = outp }); // [1]

@@ -118,7 +118,7 @@ pub fn alloc(siz: u32) !VectorId {
 }
 
 pub fn free(vid: VectorId) void {
-    var id = mergeZeroBlks(vid);
+    const id = mergeZeroBlks(vid);
     if (!mergeFreeBlks(id))
         insertFreeBlk(id);
 }
@@ -144,10 +144,10 @@ fn insertFreeBlk(id: VectorId) void {
 }
 
 fn mergeFreeBlks(vid: VectorId) bool {
-    var id = vid;
+    const id = vid;
     var fb = freeBlks;
     var pl = &freeBlks;
-    var len = vecArray[id];
+    const len = vecArray[id];
     var flen: u32 = 0;
     var merged = false;
 
@@ -359,7 +359,7 @@ test "allocating and freeing vectors" {
     // Part 6: merge with zero-length blocks before and after
     s1 = try alloc(20);
     s2 = try alloc(30);
-    var s3 = try alloc(50);
+    const s3 = try alloc(50);
     try expect(s3 == 53);
     free(s2);
     s2 = try alloc(29);

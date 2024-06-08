@@ -1,5 +1,5 @@
 .vscode/
 old/
 xfiles/
-zig-cache/
+.zig-cache/
 zig-out/

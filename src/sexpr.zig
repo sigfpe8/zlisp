@@ -123,7 +123,7 @@ pub fn makeRational(num: i64, den: i64) !Sexpr {
     
     // Try to reduce to lowest terms (-2/4 --> -1/2)
     if (rnum != std.math.minInt(i64)) { // Cannot get the absolute value of minInt
-        const gcd: i64 = @bitCast(std.math.gcd(std.math.absCast(rnum), std.math.absCast(rden)));
+        const gcd: i64 = @bitCast(std.math.gcd(@abs(rnum), @abs(rden)));
         if (gcd != 1) {
             rnum = @divExact(rnum, gcd);
             rden = @divExact(rden, gcd);
@@ -151,7 +151,7 @@ pub fn makeVector(tvec: []Sexpr) !Sexpr {
     if (len == 0)
         return sxNullVec;
     const id = try vec.alloc(len);
-    std.mem.copy(Sexpr, vec.vecArray[id + 1 .. id + 1 + len], tvec[0..len]);
+    @memcpy(vec.vecArray[id + 1 .. id + 1 + len], tvec[0..len]);
     return makeTaggedPtr(id, .vector);
 }
 

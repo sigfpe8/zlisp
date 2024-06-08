@@ -22,7 +22,7 @@ const ver_patch = 0;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var allocator = gpa.allocator();
+    const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
     const args = try std.process.argsAlloc(allocator);

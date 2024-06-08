@@ -310,7 +310,7 @@ pub fn getAsComplex(num: Sexpr) Complex {
 
 pub fn complexToPolar(re: f64, im: f64) Polar {
     const mag: f64 = std.math.sqrt(re * re + im * im);
-    const ang: f64 = std.math.atan2(f64, im, re);
+    const ang: f64 = std.math.atan2(im, re);
     return Polar{ .mag = Real{ .flt = mag }, .ang = Real{ .flt = ang }};
 }
 
@@ -660,7 +660,7 @@ fn mulRational(r1: Rational, r2: Rational) Rational {
     // Can't get the absolute value of minInt
     if (num != std.math.minInt(i64)) {
         // Reduce to lowest terms (-2/4 --> -1/2)
-        const gcd: i64 = @bitCast(std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
+        const gcd: i64 = @bitCast(std.math.gcd(@abs(num), @abs(den)));
         if (gcd != 1) {
             num = @divExact(num, gcd);
             den = @divExact(den, gcd);
@@ -680,7 +680,7 @@ fn divRational(r1: Rational, r2: Rational) !Rational {
     // Can't get the absolute value of minInt
     if (num != std.math.minInt(i64)) {
         // Reduce to lowest terms (-2/4 --> -1/2)
-        const gcd: i64 = @bitCast(std.math.gcd(std.math.absCast(num), std.math.absCast(den)));
+        const gcd: i64 = @bitCast(std.math.gcd(@abs(num), @abs(den)));
         if (gcd != 1) {
             num = @divExact(num, gcd);
             den = @divExact(den, gcd);
