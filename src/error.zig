@@ -18,6 +18,9 @@ pub const ReadError = error{
     NetNameDeleted,
     NoSpaceLeft,
     SocketNotConnected,
+    LockViolation,
+    ProcessNotFound,
+    Canceled,
 };
 
 pub const ParsingError = error{
