@@ -13,24 +13,24 @@ pub const String = struct {
 var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = ggpa.allocator();
 
-pub var stringsTable = std.ArrayList(String).init(allocator);
-var bytesTable   = std.ArrayList(u8).init(allocator);
+pub var stringsTable: std.ArrayList(String) = .empty;
+var bytesTable: std.ArrayList(u8) = .empty;
 var freeStrings: StringId = 0;
 
 pub fn init() !void {
     // Id 0 is reserved for the null (empty) string
-    try stringsTable.append(.{ .off = 0, .len = 0, });
+    try stringsTable.append(allocator, .{ .off = 0, .len = 0, });
 }
 
 pub fn deinit() void {
-    stringsTable.deinit();
-    bytesTable.deinit();
+    stringsTable.deinit(allocator);
+    bytesTable.deinit(allocator);
 }
 
 pub fn add(str: []const u8) !StringId {
     // Next string offset is at the end of the current array
     const off: StringOff = @truncate(bytesTable.items.len);
-    try bytesTable.appendSlice(str);
+    try bytesTable.appendSlice(allocator, str);
     var sid: StringId = 0;
 
     if (freeStrings == 0) {
@@ -42,7 +42,7 @@ pub fn add(str: []const u8) !StringId {
         freeStrings = stringsTable.items[sid].off;
     }
 
-    try stringsTable.append(.{ .off = off, .len = @as(u32, @truncate(str.len)), });
+    try stringsTable.append(allocator, .{ .off = off, .len = @as(u32, @truncate(str.len)), });
     return sid;
 }
 

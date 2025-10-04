@@ -188,9 +188,10 @@ pub const Lexer = struct {
     svalue: []const u8 = undefined, // Value of string/symbol token
     name: []const u8 = undefined,   // File name
     line: []const u8 = undefined,   // Current source line
-    buffer: []u8 = undefined,       // Line buffer
-    file: std.fs.File = undefined,  // File
-    reader: std.fs.File.Reader = undefined,
+    buffer: []u8 = undefined,       // Input (Line) buffer
+
+    file_reader: std.fs.File.Reader = undefined,  // File.Reader
+    reader: *std.Io.Reader = undefined,           // Reader interface
 
     const Self = @This();
     const BUFFER_SIZE = 2048;
@@ -204,7 +205,8 @@ pub const Lexer = struct {
         // Failing to open a file is quite common, so we try it first.
         // If the file doesn't exist we avoid having to clean up allocated memory.
         if (std.mem.eql(u8, name, "stdin")) {
-            isterm = true;  // Reading from an interactive terminal
+            isterm = true;  // Reading from an interactive terminal 
+            file = std.fs.File.stdin();
         } else {
             isterm = false; // Reading from a file
             file = try std.fs.cwd().openFile(name, .{});
@@ -227,21 +229,15 @@ pub const Lexer = struct {
         lexer.cchar = 0;
         lexer.name = try strDup(name);
 
-        if (isterm) {
-            // Console
-            lexer.reader = std.io.getStdIn().reader();
-        } else {
-            // File
-            lexer.file = file;
-            lexer.reader = std.fs.File.reader(file);
-        }
+        lexer.file_reader = file.reader(buffer);
+        lexer.reader = &lexer.file_reader.interface;
 
         return lexer;
     }
 
     pub fn destroy(self: *Lexer) void {
         if (!self.isterm)
-            self.file.close();
+            self.file_reader.file.close();
         allocator.free(self.buffer);
         allocator.free(self.name);
         allocator.destroy(self);
@@ -361,7 +357,7 @@ pub const Lexer = struct {
         return false;
     }
 
-    fn nextLine(self: *Lexer) ReadError!?[]const u8 {
+    fn nextLine(self: *Lexer) !?[]const u8 {
         // Print prompt if this is an interactive session
         if (self.isterm) {
             if (self.inexpr) {
@@ -370,11 +366,11 @@ pub const Lexer = struct {
                 out.print("> ", .{});
         }
 
-        const buffer = self.buffer;
         const reader = self.reader;
 
-        const line = (try reader.readUntilDelimiterOrEof(buffer,'\n',))
-                    orelse return null;
+        const line = reader.takeDelimiterExclusive('\n') catch |err| {
+            return if (err == error.EndOfStream) null else err;
+        };
         self.lnum += 1;
 
         // Trim annoying windows-only carriage return character
@@ -627,20 +623,20 @@ pub const Lexer = struct {
         // all Scheme exponent markers to 'e'. This is because
         // we use std.fmt.parseFloat() to do the actual conversion
         // from string to f64 and it only understands 'e'.
-        var decimal = try std.ArrayList(u8).initCapacity(allocator, 64);
-        defer decimal.deinit();
+        var decimal: std.ArrayList(u8) = .empty;
+        defer decimal.deinit(allocator);
 
         if (self.cchar == '.') {
             // Copy integer part (if any) + decimal point
             const end = self.cpos;
-            try decimal.appendSlice(self.line[begin..end]);
+            try decimal.appendSlice(allocator, self.line[begin..end]);
 
             // Skip .
             self.nextChar();
 
             // Copy decimal part (if any)
             while (ascii.isDigit(self.cchar)) {
-                try decimal.append(self.cchar);
+                try decimal.append(allocator, self.cchar);
                 self.nextChar();
             }
             // Number must have at least 1 digit, like "1." or ".5".
@@ -650,22 +646,22 @@ pub const Lexer = struct {
         } else {    // <uinteger 10> <suffix>
             // Copy integer part
             const end = self.cpos - 1;
-            try decimal.appendSlice(self.line[begin..end]);
+            try decimal.appendSlice(allocator, self.line[begin..end]);
         }
 
         // Parse exponent
         if (isExpMarker(self.cchar)) {
-            try decimal.append('e');
+            try decimal.append(allocator, 'e');
             self.nextChar();
             if (self.cchar == '+' or self.cchar == '-') {
-                try decimal.append(self.cchar);
+                try decimal.append(allocator, self.cchar);
                 self.nextChar();
             }
             // Exponent must have at least 1 digit
             if (!ascii.isDigit(self.cchar))
                 return TokenError.ExpectedExponent;
             while (ascii.isDigit(self.cchar)) {
-                try decimal.append(self.cchar);
+                try decimal.append(allocator, self.cchar);
                 self.nextChar();
             }
         }
@@ -734,8 +730,8 @@ pub const Lexer = struct {
     }
 
     fn parseString(self: *Lexer) !void {
-        var lit = std.ArrayList(u8).init(allocator);
-        defer lit.deinit();
+        var lit: std.ArrayList(u8) = .empty;
+        defer lit.deinit(allocator);
 
         self.nextChar();    // Skip starting "
         while (self.cchar != '"') {
@@ -753,12 +749,12 @@ pub const Lexer = struct {
             if (cchar == 0) {   // End of line
                 const save_inexpr = self.inexpr;
                 self.inexpr = true;
-                try lit.append('\n');
+                try lit.append(allocator, '\n');
                 try self.nextTokenChar();
                 self.inexpr = save_inexpr;
                 continue;
             }
-            try lit.append(cchar);
+            try lit.append(allocator, cchar);
             self.nextChar();
         }
         self.nextChar();    // Skip ending "
@@ -779,7 +775,7 @@ pub const Lexer = struct {
         out.print("\nSyntax error in {s}:", .{ self.name });
         if (!self.isterm)
             out.print("{d}:", .{self.lnum});
-        out.print(" {!}\n{s}\n", .{ err, self.line[0..] });
+        out.print(" {any}\n{s}\n", .{ err, self.line[0..] });
 
         var i: usize = 0;
         while (i < self.begin) : (i += 1) {

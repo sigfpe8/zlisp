@@ -42,15 +42,18 @@ const allocator = ggpa.allocator();
 
 pub const PortId = u32;
 
-pub const Reader = std.fs.File.Reader;
-pub const Writer = std.fs.File.Writer;
+pub const Reader = std.Io.Reader;
+pub const Writer = std.Io.Writer;
 
 const Printer = struct {
-    name: []const u8,
-    file: std.fs.File,
-    writer: Writer,
+    buffer: []u8,                   // Output buffer
+    name: []const u8,               // File/device name
+    file_writer: std.fs.File.Writer,// File.Writer
+    writer: *Writer,                // Writer interface
     isopen: bool,
     isterm: bool,
+
+    const BUFFER_SIZE = 2048;
 
     /// Create an instance of Printer{} for output to file 'name'.
     /// The special names 'stdout' and 'stderr' are assumed to be a console/terminal.
@@ -58,30 +61,38 @@ const Printer = struct {
         var printer: *Printer = try allocator.create(Printer);
         errdefer allocator.destroy(printer);
 
+        const buffer = try allocator.alloc(u8, BUFFER_SIZE);
+        errdefer allocator.free(buffer);
+        printer.buffer = buffer;
+
+        var file: std.fs.File = undefined;
         if (std.mem.eql(u8, name, "stdout")) {
             printer.isterm = true;
-            printer.writer = std.io.getStdOut().writer();
+            file = std.fs.File.stdout();
         } else if (std.mem.eql(u8, name, "stderr")) {
             printer.isterm = true;
-            printer.writer = std.io.getStdErr().writer();
+            file = std.fs.File.stderr();
         } else {
             // Regular file
             printer.isterm = false;
-            printer.file = try std.fs.cwd().createFile(name, .{});
-            printer.writer = std.fs.File.writer(printer.file);
+            file = try std.fs.cwd().createFile(name, .{});
         }
-
-        errdefer if (!printer.isterm) printer.file.close();
+        errdefer if (!printer.isterm) file.close();
 
         printer.name = try lex.strDup(name);
         printer.isopen = true;
+
+        printer.file_writer = file.writer(buffer);
+        printer.writer = &printer.file_writer.interface;
 
         return printer;
     }
 
     pub fn destroy(self: *Printer) void {
+        self.writer.flush() catch {};
         if (!self.isterm)
-            self.file.close();
+            self.file_writer.file.close();
+        allocator.free(self.buffer);
         allocator.free(self.name);
         allocator.destroy(self);
     }
@@ -94,11 +105,11 @@ pub const Port = union(enum) {
 
 // This crashes the compiler :(
 // var portsTable = std.ArrayList(Port).initCapacity(allocator, 20);
-var portsTable = std.ArrayList(Port).init(allocator);
+var portsTable: std.ArrayList(Port) = .empty;
 
-var stdin = std.io.getStdIn().reader();   // Reader{}
-var stdout = std.io.getStdOut().writer(); // Writer{}
-var stderr = std.io.getStdErr().writer(); // Writer{}
+var stdin:  *Reader = undefined;
+var stdout: *Writer = undefined;
+var stderr: *Writer = undefined;
 
 var stdinPort:  Sexpr = makePort(0);
 var stdoutPort: Sexpr = makePort(1);
@@ -106,16 +117,19 @@ var stderrPort: Sexpr = makePort(2);
 
 pub fn init() !void {
     const inpp = try Lexer.create("stdin");
+    stdin = inpp.reader;
     const outp = try Printer.create("stdout");
+    stdout = outp.writer;
     const errp = try Printer.create("stderr");
+    stderr = errp.writer;
 
-    try portsTable.append(.{ .reader = inpp }); // [0]
-    try portsTable.append(.{ .writer = outp }); // [1]
-    try portsTable.append(.{ .writer = errp }); // [2]
+    try portsTable.append(allocator, .{ .reader = inpp });   // [0]
+    try portsTable.append(allocator, .{ .writer = outp }); // [1]
+    try portsTable.append(allocator, .{ .writer = errp }); // [2]
 }
 
 pub fn deinit() void {
-    portsTable.deinit();
+    portsTable.deinit(allocator);
 }
 
 pub fn getName(pid: PortId) []const u8 {
@@ -163,7 +177,7 @@ pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedInputPort;
     const reader = portsTable.items[pid].reader;
     if (!reader.isterm)
-        reader.file.close();
+        reader.file_reader.file.close();
     reader.isopen = false;
     return sxVoid;
 }
@@ -262,7 +276,7 @@ pub fn loadFile(path: []const u8) void {
 
 fn newInputPort(reader: *Lexer) !PortId {
     const pid: PortId = @truncate(portsTable.items.len);
-    try portsTable.append(.{ .reader = reader });
+    try portsTable.append(allocator, .{ .reader = reader });
     return pid;
 }
 
@@ -297,6 +311,9 @@ pub fn print(comptime format: []const u8, args: anytype) void {
     stdout.print(format, args) catch |err| {
         std.debug.print("Error {any} writing to stdout:\n", .{err});
         std.debug.print(format, args);
+    };
+    stdout.flush() catch |err| {
+        std.debug.print("Error {any} flushing stdout:\n", .{err});
     };
 }
 
@@ -335,7 +352,7 @@ pub fn pCloseOutputPort(args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedOutputPort;
     const writer = portsTable.items[pid].writer;
     if (!writer.isterm)
-        writer.file.close();
+        writer.file_writer.file.close();
     writer.isopen = false;
     return sxVoid;
 }
@@ -643,7 +660,7 @@ fn printList(sexpr: Sexpr) void {
 
 fn newOutputPort(writer: *Printer) !PortId {
     const pid: PortId = @truncate(portsTable.items.len);
-    try portsTable.append(.{ .writer = writer });
+    try portsTable.append(allocator, .{ .writer = writer });
     return pid;
 }
 

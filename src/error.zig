@@ -97,6 +97,6 @@ test "error sets" {
 
     var err: u16 = 1;
     while (err < 100) : (err += 1) {
-        print("{d}  {!}\n", .{ err, @errorFromInt(err) });
+        print("{d}  {any}\n", .{ err, @errorFromInt(err) });
     }
 }

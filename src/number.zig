@@ -54,7 +54,7 @@ pub const Rational = struct {
 /// Returns -1 if r1  < r2
 ///          0 if r1 == r2
 ///          1 if r1  > r2
-fn cmpNum(comptime T: type, n1: T, n2: T) callconv(.Inline) isize {
+inline fn cmpNum(comptime T: type, n1: T, n2: T) isize {
     if (n1 < n2)
         return -1;
     if (n1 > n2)

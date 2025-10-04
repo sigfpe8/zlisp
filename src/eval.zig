@@ -85,7 +85,7 @@ var evalSP: usize = 0;                  // Where next item will go
 const evalStackLen = evalStack.len;
 
 /// Pushes one element on top of the stack
-pub fn stackPush(item: Sexpr) callconv(.Inline) EvalError!void {
+pub inline fn stackPush(item: Sexpr) EvalError!void {
     if (evalSP == evalStackLen)
         return EvalError.EvalStackOverflow;
     evalStack[evalSP] = item;
@@ -93,35 +93,35 @@ pub fn stackPush(item: Sexpr) callconv(.Inline) EvalError!void {
 }
 
 /// Pops top element from the stack
-pub fn stackPop() callconv(.Inline) Sexpr {
+pub inline fn stackPop() Sexpr {
     assert(evalSP > 0);
     evalSP -= 1;
     return evalStack[evalSP];
 }
 
 /// Removes top `n` elements from the stack
-pub fn stackDrop(n: usize) callconv(.Inline) void {
+pub inline fn stackDrop(n: usize) void {
     assert(evalSP - n >= 0);
     evalSP -= n;
 }
 
 /// Gets top stack index (SP)
-pub fn stackGetSP() callconv(.Inline) usize {
+pub inline fn stackGetSP() usize {
     return evalSP;
 }
 
 /// Sets top stack index (SP) to given value 
-pub fn stackSetSP(sp: usize) callconv(.Inline) void {
+pub inline fn stackSetSP(sp: usize) void {
     evalSP = sp;
 }
 
 /// Returns stack slice from base to base + len
-pub fn stackGetSlice(base: usize, len: usize) callconv(.Inline) []Sexpr {
+pub inline fn stackGetSlice(base: usize, len: usize) []Sexpr {
     return evalStack[base .. base + len];
 }
 
 /// Move top of stack to `base` slot, unless it's already there.
-pub fn stackMoveTopDown(base: usize) callconv(.Inline) void {
+pub inline fn stackMoveTopDown(base: usize) void {
     if (evalSP != base + 1) {
         evalStack[base] = evalStack[evalSP-1];
         evalSP = base + 1;
@@ -294,7 +294,7 @@ pub fn pApply(args: []Sexpr) EvalError!Sexpr {
 
 pub fn logError(err: anyerror) void {
     var buffer: [64]u8 = undefined;
-    const name = std.fmt.bufPrint(&buffer, "{!}", .{err}) catch unreachable;
+    const name = std.fmt.bufPrint(&buffer, "{any}", .{err}) catch unreachable;
     print("\nEvaluation error: {s}\n", .{name[6..]});   // Skip "error."
 }
 
@@ -330,7 +330,7 @@ pub const Environ = struct {
         }
     }
 
-    pub fn evalPop(self: *Self, sexpr: Sexpr) callconv(.Inline) EvalError!Sexpr {
+    pub inline fn evalPop(self: *Self, sexpr: Sexpr) EvalError!Sexpr {
         try self.eval(sexpr);
         return stackPop();
     }
@@ -391,7 +391,7 @@ pub const Environ = struct {
     pub fn setVar(self: *Self, symbol: SymbolId, expr: Sexpr) !void {
         // This might trigger an allocation error
         self.assoc.put(symbol, expr) catch |err| {
-            print("  {!}\n", .{err});
+            print("  setVar: {any}\n", .{err});
             return EvalError.DefineFailed;
         };
     }
@@ -404,7 +404,7 @@ pub const Environ = struct {
             if (env.assoc.contains(symbol)) {   // Found it
                 // Try to set! it here but this could trigger an allocation error
                 env.assoc.put(symbol, expr) catch |err| {
-                    print("  {!}\n", .{err});
+                    print("  setBangVar: {any}\n", .{err});
                     return EvalError.DefineFailed;
                 };
                 return; // set! succeeded
