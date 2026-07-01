@@ -37,18 +37,20 @@ const EvalError = @import("error.zig").EvalError;
 const getAsInt = nbr.getAsInt;
 const getSign = nbr.getSign;
 
-var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = ggpa.allocator();
-
 pub const PortId = u32;
 
-pub const Reader = std.Io.Reader;
-pub const Writer = std.Io.Writer;
+const Io = std.Io;
+const Reader = Io.Reader;
+const Writer = Io.Writer;
+const Allocator = std.mem.Allocator;
+
+var allocator: Allocator = undefined;
+var io: Io = undefined;
 
 const Printer = struct {
     buffer: []u8,                   // Output buffer
     name: []const u8,               // File/device name
-    file_writer: std.fs.File.Writer,// File.Writer
+    file_writer: Io.File.Writer,    // File.Writer
     writer: *Writer,                // Writer interface
     isopen: bool,
     isterm: bool,
@@ -65,24 +67,24 @@ const Printer = struct {
         errdefer allocator.free(buffer);
         printer.buffer = buffer;
 
-        var file: std.fs.File = undefined;
+        var file: Io.File = undefined;
         if (std.mem.eql(u8, name, "stdout")) {
             printer.isterm = true;
-            file = std.fs.File.stdout();
+            file = Io.File.stdout();
         } else if (std.mem.eql(u8, name, "stderr")) {
             printer.isterm = true;
-            file = std.fs.File.stderr();
+            file = Io.File.stderr();
         } else {
             // Regular file
             printer.isterm = false;
-            file = try std.fs.cwd().createFile(name, .{});
+            file = try Io.Dir.cwd().createFile(io, name, .{});
         }
-        errdefer if (!printer.isterm) file.close();
+        errdefer if (!printer.isterm) file.close(io);
 
-        printer.name = try lex.strDup(name);
+        printer.name = try allocator.dupe(u8, name);
         printer.isopen = true;
 
-        printer.file_writer = file.writer(buffer);
+        printer.file_writer = file.writer(io, buffer);
         printer.writer = &printer.file_writer.interface;
 
         return printer;
@@ -91,7 +93,7 @@ const Printer = struct {
     pub fn destroy(self: *Printer) void {
         self.writer.flush() catch {};
         if (!self.isterm)
-            self.file_writer.file.close();
+            self.file_writer.file.close(io);
         allocator.free(self.buffer);
         allocator.free(self.name);
         allocator.destroy(self);
@@ -115,7 +117,10 @@ var stdinPort:  Sexpr = makePort(0);
 var stdoutPort: Sexpr = makePort(1);
 var stderrPort: Sexpr = makePort(2);
 
-pub fn init() !void {
+pub fn init(_io: Io, _allocator: Allocator) !void {
+    io = _io;
+    allocator = _allocator;
+
     const inpp = try Lexer.create("stdin");
     stdin = inpp.reader;
     const outp = try Printer.create("stdout");
@@ -129,6 +134,12 @@ pub fn init() !void {
 }
 
 pub fn deinit() void {
+    for (portsTable.items) |p| {
+        switch (p) {
+            .reader => |port| port.destroy(),         // Lexer destroy
+            .writer => |port| port.destroy(),       // Printer destroy    
+        }
+    }
     portsTable.deinit(allocator);
 }
 
@@ -177,7 +188,7 @@ pub fn pCloseInputPort(args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedInputPort;
     const reader = portsTable.items[pid].reader;
     if (!reader.isterm)
-        reader.file_reader.file.close();
+        reader.file_reader.file.close(io);
     reader.isopen = false;
     return sxVoid;
 }
@@ -352,7 +363,7 @@ pub fn pCloseOutputPort(args: []Sexpr) EvalError!Sexpr {
         return EvalError.ExpectedOutputPort;
     const writer = portsTable.items[pid].writer;
     if (!writer.isterm)
-        writer.file_writer.file.close();
+        writer.file_writer.file.close(io);
     writer.isopen = false;
     return sxVoid;
 }

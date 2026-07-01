@@ -27,21 +27,30 @@ const charNameTable = [_]CharName{
     .{ .name = "vtab",      .code = 0x000B, .prefer = true  },  //  vertical tab
 };
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+const Allocator = std.mem.Allocator;
+var allocator: Allocator = undefined;
 
 // Maps a character name to its index in charNameTable[]
-var charNameHashMap = std.StringHashMap(u32).init(allocator);
+var charNameHashMap: std.StringHashMap(u32) = undefined;
 
 // Maps a character code to its index in charNameTable[]
-var charCodeHashMap = std.AutoHashMap(u32, u32).init(allocator);
+var charCodeHashMap: std.AutoHashMap(u32, u32) = undefined;
 
-pub fn init() !void {
+pub fn init(_allocator: Allocator) !void {
+    allocator = _allocator;
+    charNameHashMap = std.StringHashMap(u32).init(allocator);
+    charCodeHashMap = std.AutoHashMap(u32, u32).init(allocator);
+
     for (charNameTable, 0..) |cns, i| {
         try charNameHashMap.put(cns.name, @as(u32, @truncate(i)));
         if (cns.prefer)
             try charCodeHashMap.put(cns.code, @as(u32, @truncate(i)));
     }
+}
+
+pub fn deinit() void {
+    charNameHashMap.deinit();
+    charCodeHashMap.deinit();
 }
 
 pub fn codeFromName(name: []const u8) ?u32 {
@@ -57,10 +66,16 @@ pub fn nameFromCode(code: u32) ?[]const u8 {
 }
 
 test "Testing character names" {
+    var gpa = std.heap.DebugAllocator(.{}){};
+    const dbg_allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    try init(dbg_allocator);
+    defer deinit();
+
     const expect = @import("std").testing.expect;
     const equal  = std.mem.eql;
 
-    try init();
     try expect(codeFromName("alarm").? == 7);
     try expect(codeFromName("backspace").? == 8);
     try expect(codeFromName("bell").? == 7);

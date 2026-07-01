@@ -25,8 +25,10 @@ const makeReal = nbr.makeReal;
 const mem = std.mem;
 const Sexpr = sxp.Sexpr;
 
-var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = ggpa.allocator();
+pub const Io = std.Io;
+pub const Reader = Io.Reader;
+pub const Writer = Io.Writer;
+pub const Allocator = std.mem.Allocator;
 
 pub const Token = enum { lparens,       // ( [ {
                          rparens,       // ) ] }
@@ -49,6 +51,14 @@ pub const Token = enum { lparens,       // ( [ {
 const ReadError = erz.ReadError;
 const SchemeError = erz.SchemeError;
 const TokenError = erz.TokenError;
+
+var io: Io = undefined;
+var allocator: Allocator = undefined;
+
+pub fn init(_io: Io, _allocator: Allocator) void {
+    io = _io;
+    allocator = _allocator;
+}
 
 fn isSymbolStart(ch: u8) bool {
     return switch (ch) {
@@ -144,11 +154,11 @@ fn getSign(real: Real) i64 {
     return 0;
 }
 
-pub fn strDup(src: []const u8) ![]u8 {
-    const dst = try allocator.alloc(u8, src.len);
-    @memcpy(dst[0..], src[0..]);
-    return dst;
-}
+// pub fn strDup(src: []const u8) ![]u8 {
+//     const dst = try allocator.alloc(u8, src.len);
+//     @memcpy(dst[0..], src[0..]);
+//     return dst;
+// }
 
 pub fn makeNumber(num: Number) !Sexpr {
     var sexpr: Sexpr = undefined;
@@ -190,8 +200,8 @@ pub const Lexer = struct {
     line: []const u8 = undefined,   // Current source line
     buffer: []u8 = undefined,       // Input (Line) buffer
 
-    file_reader: std.fs.File.Reader = undefined,  // File.Reader
-    reader: *std.Io.Reader = undefined,           // Reader interface
+    file_reader: Io.File.Reader = undefined,  // File.Reader
+    reader: *Reader = undefined,              // Reader interface
 
     const Self = @This();
     const BUFFER_SIZE = 2048;
@@ -199,19 +209,19 @@ pub const Lexer = struct {
     /// Create an instance of Lexer{} for input from file `name`
     /// The special name `stdin` is assumed to be a console/terminal.
     pub fn create(name: []const u8) !*Lexer {
-        var file: std.fs.File = undefined;
+        var file: Io.File = undefined;
         var isterm: bool = undefined;
 
         // Failing to open a file is quite common, so we try it first.
         // If the file doesn't exist we avoid having to clean up allocated memory.
         if (std.mem.eql(u8, name, "stdin")) {
             isterm = true;  // Reading from an interactive terminal 
-            file = std.fs.File.stdin();
+            file = Io.File.stdin();
         } else {
             isterm = false; // Reading from a file
-            file = try std.fs.cwd().openFile(name, .{});
+            file = try Io.Dir.cwd().openFile(io, name, .{});
         }
-        errdefer if (!isterm) file.close();
+        errdefer if (!isterm) file.close(io);
 
         var lexer: *Lexer = try allocator.create(Lexer);
         errdefer allocator.destroy(lexer);
@@ -227,9 +237,9 @@ pub const Lexer = struct {
         lexer.lnum = 0;
         lexer.cpos = 0;
         lexer.cchar = 0;
-        lexer.name = try strDup(name);
+        lexer.name = try allocator.dupe(u8, name);
 
-        lexer.file_reader = file.reader(buffer);
+        lexer.file_reader = file.reader(io, buffer);
         lexer.reader = &lexer.file_reader.interface;
 
         return lexer;
@@ -237,7 +247,7 @@ pub const Lexer = struct {
 
     pub fn destroy(self: *Lexer) void {
         if (!self.isterm)
-            self.file_reader.file.close();
+            self.file_reader.file.close(io);
         allocator.free(self.buffer);
         allocator.free(self.name);
         allocator.destroy(self);
@@ -368,9 +378,10 @@ pub const Lexer = struct {
 
         const reader = self.reader;
 
-        const line = reader.takeDelimiterExclusive('\n') catch |err| {
+        var line = reader.takeDelimiterInclusive('\n') catch |err| {
             return if (err == error.EndOfStream) null else err;
         };
+        line = line[0..line.len - 1]; // Trim \n
         self.lnum += 1;
 
         // Trim annoying windows-only carriage return character

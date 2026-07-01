@@ -76,13 +76,28 @@ pub var kwQuasiquote:  SymbolId = undefined;
 pub var kwUnquote:     SymbolId = undefined;
 pub var kwUnquote_spl: SymbolId = undefined;
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+const Allocator = std.mem.Allocator;
+var allocator: Allocator = undefined;
 
 /// Evaluation stack
 var evalStack: [2048]Sexpr = undefined; // This will probably become an ArrayList[]
 var evalSP: usize = 0;                  // Where next item will go
 const evalStackLen = evalStack.len;
+
+pub var globalEnv: Environ = undefined;
+
+pub fn init(_allocator: Allocator) !void {
+    allocator = _allocator;
+    globalEnv = Environ{
+        .outer = null,
+        .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
+    };
+    try internKeywords();
+}
+
+pub fn deinit() void {
+    globalEnv.assoc.deinit();
+}
 
 /// Pushes one element on top of the stack
 pub inline fn stackPush(item: Sexpr) EvalError!void {
@@ -127,11 +142,6 @@ pub inline fn stackMoveTopDown(base: usize) void {
         evalSP = base + 1;
     }
 }
-
-pub var globalEnv = Environ{
-    .outer = null,
-    .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
-};
 
 pub fn internKeywords() !void {
     kwElse        = try sym.intern("else");
@@ -195,10 +205,12 @@ pub fn quoteExpr(name: SymbolId, expr: Sexpr) !Sexpr {
 fn apply(pid: ProcId, args: []Sexpr) !void {
     const pt: *Proc = &proc.procArray[pid];
     const env: *Environ = try allocator.create(Environ);
+    // defer allocator.destroy(env);
     env.* = .{
         .outer = pt.env,  // Chain it to the closure environment
         .assoc = std.AutoHashMap(SymbolId, Sexpr).init(allocator),
     };
+    // defer env.assoc.deinit();
 
     // 'body' is a vector
     const bid  = pt.body >> TagShift;

@@ -5,19 +5,20 @@ const print = std.debug.print;
 pub const StringId = u32;
 const StringOff = u32;
 
+const Allocator = std.mem.Allocator;
+var allocator: Allocator = undefined;
+
 pub const String = struct {
     off: StringOff,
     len: u32,    
 };
 
-var ggpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = ggpa.allocator();
-
 pub var stringsTable: std.ArrayList(String) = .empty;
 var bytesTable: std.ArrayList(u8) = .empty;
 var freeStrings: StringId = 0;
 
-pub fn init() !void {
+pub fn init(_allocator: Allocator) !void {
+    allocator = _allocator;
     // Id 0 is reserved for the null (empty) string
     try stringsTable.append(allocator, .{ .off = 0, .len = 0, });
 }
@@ -61,9 +62,16 @@ pub fn get(sid: StringId) []u8 {
 }
 
 test "basic strings" {
-    const expect = std.testing.expect;
-    try init();
+    var gpa = std.heap.DebugAllocator(.{}){};
+    const dbg_allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    try init(dbg_allocator);
     defer deinit();
+
+    const expect = std.testing.expect;
+    // try init();
+    // defer deinit();
 
     const s1 = try add("hello");
     const s2 = try add("Hello, World!");

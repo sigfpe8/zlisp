@@ -11,6 +11,7 @@ const eval = @import("eval.zig");
 const sexp = @import("sexpr.zig");
 const str = @import("string.zig");
 const spc = @import("special.zig");
+const sym = @import("symbol.zig");
 
 const Cell = cell.Cell;
 const Lexer = lex.Lexer;
@@ -20,15 +21,16 @@ const ver_major = 0;
 const ver_minor = 1;
 const ver_patch = 0;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+    const allocator = init.gpa;
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    lex.init(io, allocator);
+    sym.init(allocator);
+    defer sym.deinit();
 
-    try iop.init();
+    try iop.init(io, allocator);
     defer iop.deinit();
 
     iop.print("ZLisp [{}.{}.{}]\n", .{ ver_major, ver_minor, ver_patch });
@@ -39,11 +41,13 @@ pub fn main() !void {
     defer vec.deinit();
     try Proc.init(1024);
     defer Proc.deinit();
-    try str.init();
+    try str.init(allocator);
     defer str.deinit();
 
-    try eval.internKeywords();
-    try chr.init();
+    try eval.init(allocator);
+    defer eval.deinit();
+    try chr.init(allocator);
+    defer chr.deinit();
     try spc.init();
     try pri.init();
 
