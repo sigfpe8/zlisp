@@ -1,3 +1,15 @@
+2026-07-01 - Move to zig 0.16.0
+             Since the allocator now comes from the juicy main(), when the
+             program is compiled with -Doptimize=Debug (default) a number of
+             memory leaks were/are reported when it exits. When compiled with
+             -Doptimize=ReleaseFast, these leaks are not reported. I have
+             fixed most leaks but those coming from environments created by
+             apply() during an expression evaluation are still to be addressed.
+
+2025-10-04 - Move to zig 0.15.1
+
+2025-05-18 - Move to zig 0.14.0
+
 2024-06-08 - Move to zig 0.13.0
              Long time no update :(
 
